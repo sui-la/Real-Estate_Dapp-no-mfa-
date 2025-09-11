@@ -83,11 +83,32 @@ You'll know it's working when:
 
 ## 🛠️ Quick Fixes
 
-**If something doesn't work:**
-1. **Restart everything**: `npm run start`
-2. **Clear browser cache**: Ctrl + F5
-3. **Check MetaMask**: Make sure it's connected to localhost:8545
-4. **Check console**: Press F12 for error messages
+**If `npm run start` shows `npx ENOENT` error:**
+
+### **Alternative Manual Startup (Windows Fix):**
+```bash
+# Terminal 1: Start Hardhat node
+cd contracts
+npx hardhat node
+
+# Terminal 2: Deploy contracts (wait for Terminal 1 to show "Started HTTP and WebSocket JSON-RPC server")
+cd contracts
+npx hardhat run deploy.js --network localhost
+
+# Terminal 3: Start backend
+cd backend
+npm start
+
+# Terminal 4: Start frontend
+cd frontend
+npm run dev
+```
+
+**Other common fixes:**
+1. **Clear browser cache**: Ctrl + F5
+2. **Check MetaMask**: Make sure it's connected to localhost:8545
+3. **Check console**: Press F12 for error messages
+4. **Kill all Node processes**: `taskkill /f /im node.exe` then restart
 
 ## 📞 Need Help?
 
