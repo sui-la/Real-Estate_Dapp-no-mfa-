@@ -11,8 +11,11 @@ npm run start
 
 This will automatically:
 - Install all dependencies
-- Deploy smart contracts
-- Start all servers
+- Start Hardhat blockchain node
+- **Deploy smart contracts** (runs `deploy.js` automatically)
+- Update environment files with contract addresses
+- Start backend server
+- Start frontend
 - Open the app in your browser
 
 ## 📋 Prerequisites
@@ -42,20 +45,26 @@ cd frontend
 copy env.example .env.local
 ```
 
-### 3. Start the Application
+### 3. Deploy Contracts & Start Application
 ```bash
 # Terminal 1: Start blockchain
 cd contracts
 npx hardhat node
 
-# Terminal 2: Start backend
+# Terminal 2: Deploy contracts (in a new terminal)
+cd contracts
+npx hardhat run deploy.js --network localhost
+
+# Terminal 3: Start backend
 cd backend
 npm run dev
 
-# Terminal 3: Start frontend
+# Terminal 4: Start frontend
 cd frontend
 npm run dev
 ```
+
+**Note**: If you used `npm run start`, contracts are already deployed automatically!
 
 ## 🌐 Access Points
 
