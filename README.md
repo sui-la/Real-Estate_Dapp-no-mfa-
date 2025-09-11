@@ -96,15 +96,31 @@ Real_Estate_Dapp/
 # Clone and setup everything automatically
 git clone <repository-url>
 cd Real_Estate_Dapp
-setup-fixed.bat
+npm run start:windows
+```
+
+**For Unix/Linux/Mac users:**
+```bash
+# Clone and setup everything automatically
+git clone <repository-url>
+cd Real_Estate_Dapp
+npm run start:unix
+```
+
+**Cross-platform (Node.js):**
+```bash
+# Clone and setup everything automatically
+git clone <repository-url>
+cd Real_Estate_Dapp
+npm run start
 ```
 
 This script will:
-- ✅ Deploy contracts with **fixed addresses** (never change!)
+- ✅ Deploy contracts with **consistent addresses** (automatically managed!)
 - ✅ Start Hardhat node
 - ✅ Set up frontend environment automatically
 - ✅ Start development servers
-- ✅ Create sample property with 1000 shares
+- ✅ Handle all address management automatically
 
 ### Manual Installation
 

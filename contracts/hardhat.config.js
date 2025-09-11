@@ -21,8 +21,10 @@ module.exports = {
         initialIndex: 0, // Starting index
         mnemonic: "test test test test test test test test test test test junk", // Default mnemonic
         path: "m/44'/60'/0'/0", // Derivation path
-        accountsBalance: "1000000000000000000000000", // 1,000,000 ETH per account
+        accountsBalance: "1000000000000000000000000000", // 1,000,000 ETH per account
       },
+      // Use deterministic addresses for consistent deployments
+      deterministicDeployment: true,
     },
     localhost: {
       url: "http://127.0.0.1:8545",

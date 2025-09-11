@@ -20,22 +20,9 @@ class ApiService {
       ...options
     }
 
-    console.log('🔍 [DEBUG] API Request:', {
-      url,
-      method: options.method || 'GET',
-      headers: config.headers,
-      body: options.body
-    })
-
     try {
       const response = await fetch(url, config)
-      
-      console.log('🔍 [DEBUG] API Response:', {
-        status: response.status,
-        statusText: response.statusText,
-        headers: Object.fromEntries(response.headers.entries())
-      })
-      
+
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
         console.error('❌ [ERROR] API Error Response:', errorData)

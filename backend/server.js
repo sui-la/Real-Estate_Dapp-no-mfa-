@@ -59,9 +59,7 @@ app.use('*', (req, res) => {
 
 app.listen(PORT, () => {
   console.log('🚀 [DEBUG] Backend server starting...');
-  console.log(`🔍 [DEBUG] Server running on port ${PORT}`);
-  console.log(`🔍 [DEBUG] Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`🔍 [DEBUG] Database connection: ${process.env.MONGODB_URI ? 'Configured' : 'Not configured'}`);
+
   console.log('✅ [SUCCESS] Backend server started successfully');
 });
 

@@ -11,9 +11,6 @@ const router = express.Router();
 // @access  Public
 router.get('/', async (req, res) => {
   try {
-    console.log('🔍 [DEBUG] Backend: GET /api/properties called');
-    console.log('🔍 [DEBUG] Backend: Query params:', req.query);
-    
     const { page = 1, limit = 10, search, sortBy = 'createdAt', sortOrder = 'desc' } = req.query;
     
     const query = {};
@@ -25,8 +22,6 @@ router.get('/', async (req, res) => {
       ];
     }
 
-    console.log('🔍 [DEBUG] Backend: MongoDB query:', query);
-
     const sortOptions = {};
     sortOptions[sortBy] = sortOrder === 'desc' ? -1 : 1;
 
@@ -36,11 +31,7 @@ router.get('/', async (req, res) => {
       .skip((page - 1) * limit)
       .populate('originalOwner', 'name walletAddress');
 
-    console.log('🔍 [DEBUG] Backend: Found properties:', properties.length);
-    console.log('🔍 [DEBUG] Backend: Properties data:', properties);
-
     const total = await Property.countDocuments(query);
-    console.log('🔍 [DEBUG] Backend: Total properties count:', total);
 
     const response = {
       properties,
@@ -49,7 +40,6 @@ router.get('/', async (req, res) => {
       total
     };
 
-    console.log('🔍 [DEBUG] Backend: Sending response:', response);
     res.json(response);
 
   } catch (error) {
@@ -63,20 +53,15 @@ router.get('/', async (req, res) => {
 // @access  Public
 router.get('/:id', async (req, res) => {
   try {
-    console.log('🔍 [DEBUG] Backend: GET /api/properties/:id called');
-    console.log('🔍 [DEBUG] Backend: Property ID:', req.params.id);
-    
+
     const property = await Property.findById(req.params.id)
       .populate('originalOwner', 'name walletAddress');
-
-    console.log('🔍 [DEBUG] Backend: Found property:', property);
 
     if (!property) {
       console.log('❌ [ERROR] Backend: Property not found');
       return res.status(404).json({ error: 'Property not found' });
     }
 
-    console.log('🔍 [DEBUG] Backend: Sending property data:', property);
     res.json(property);
   } catch (error) {
     console.error('❌ [ERROR] Backend: Get property error:', error);
@@ -97,9 +82,6 @@ router.post('/', [
   body('imageUrl').optional().isString()
 ], async (req, res) => {
   try {
-    console.log('🔍 [DEBUG] POST /api/properties called');
-    console.log('🔍 [DEBUG] Request body:', req.body);
-    console.log('🔍 [DEBUG] User from auth middleware:', req.user);
 
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -108,10 +90,9 @@ router.post('/', [
     }
 
     // Check if user is admin
-    console.log('🔍 [DEBUG] Looking up user with ID:', req.user.id);
+
     const user = await User.findById(req.user.id);
-    console.log('🔍 [DEBUG] Found user:', user);
-    
+
     if (!user) {
       console.log('❌ [ERROR] User not found');
       return res.status(404).json({ error: 'User not found' });
@@ -134,16 +115,6 @@ router.post('/', [
       documents = []
     } = req.body;
 
-    console.log('🔍 [DEBUG] Property data extracted:', {
-      name,
-      description,
-      location,
-      totalValue,
-      totalShares,
-      imageUrl,
-      documents
-    });
-
     const property = new Property({
       name,
       description,
@@ -159,9 +130,6 @@ router.post('/', [
       tokenId: null,
       fractionalTokenAddress: null
     });
-
-    console.log('🔍 [DEBUG] Property object created:', property);
-    console.log('🔍 [DEBUG] Attempting to save property to database...');
 
     await property.save();
 
@@ -193,10 +161,7 @@ router.put('/:id', [
   body('fractionalTokenAddress').optional().isString()
 ], async (req, res) => {
   try {
-    console.log('🔍 [DEBUG] PUT /api/properties/:id called');
-    console.log('🔍 [DEBUG] Property ID:', req.params.id);
-    console.log('🔍 [DEBUG] Request body:', req.body);
-    
+
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       console.log('❌ [ERROR] Validation errors:', errors.array());
@@ -217,9 +182,7 @@ router.put('/:id', [
     }
 
     const { name, description, totalValue, tokenId, fractionalTokenAddress } = req.body;
-    
-    console.log('🔍 [DEBUG] Updating property with:', { name, description, totalValue, tokenId, fractionalTokenAddress });
-    
+
     if (name) property.name = name;
     if (description) property.description = description;
     if (totalValue) property.totalValue = totalValue;
@@ -270,10 +233,7 @@ router.put('/:id/shares', [
   body('sharesSold').isInt({ min: 0 })
 ], async (req, res) => {
   try {
-    console.log('🔍 [DEBUG] PUT /api/properties/:id/shares called');
-    console.log('🔍 [DEBUG] Property ID:', req.params.id);
-    console.log('🔍 [DEBUG] Request body:', req.body);
-    
+
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       console.log('❌ [ERROR] Validation errors:', errors.array());
@@ -287,9 +247,7 @@ router.put('/:id/shares', [
     }
 
     const { sharesSold } = req.body;
-    
-    console.log('🔍 [DEBUG] Updating shares sold from', property.sharesSold, 'to', sharesSold);
-    
+
     property.sharesSold = sharesSold;
     await property.save();
     

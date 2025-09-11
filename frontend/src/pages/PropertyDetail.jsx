@@ -38,42 +38,32 @@ const PropertyDetail = () => {
   const loadPropertyDetails = async () => {
     try {
       setLoading(true)
-      
-      console.log('🔍 [DEBUG] PropertyDetail: loadPropertyDetails called')
-      console.log('🔍 [DEBUG] PropertyDetail: Property ID:', id)
-      
+
       // Load property details from database
-      console.log('🔍 [DEBUG] PropertyDetail: Calling apiService.getProperty...')
+
       const propertyDetails = await apiService.getProperty(id)
-      
-      console.log('🔍 [DEBUG] PropertyDetail: Received property details:', propertyDetails)
-      
+
       setProperty(propertyDetails)
       
       // Check if property has fractional token address and trading is enabled
       if (propertyDetails.fractionalTokenAddress && 
           propertyDetails.fractionalTokenAddress !== '0x0000000000000000000000000000000000000000' &&
           propertyDetails.tokenId !== null) {
-        
-        console.log('🔍 [DEBUG] PropertyDetail: Property is fractionalized, checking trading status...')
-        
+
         // Check trading status from smart contract
         if (web3Service) {
           try {
             const tradingEnabled = await web3Service.isTradingEnabled(propertyDetails.tokenId)
             setIsTradingEnabled(tradingEnabled)
-            console.log('🔍 [DEBUG] PropertyDetail: Trading status from contract:', tradingEnabled)
-            
+
             // Load user ownership information if user is connected
             if (isAuthenticated) {
               try {
-                console.log('🔍 [DEBUG] PropertyDetail: Loading user ownership info...')
+
                 const userAddress = await web3Service.signer.getAddress()
-                console.log('🔍 [DEBUG] PropertyDetail: User address:', userAddress)
-                console.log('🔍 [DEBUG] PropertyDetail: Property tokenId:', propertyDetails.tokenId)
-                
+
                 const ownership = await web3Service.getUserOwnershipInfo(userAddress, propertyDetails.tokenId)
-                console.log('🔍 [DEBUG] PropertyDetail: User ownership:', ownership)
+
                 setUserOwnership(ownership)
               } catch (ownershipError) {
                 console.error('❌ [ERROR] PropertyDetail: Error loading user ownership:', ownershipError)
@@ -86,12 +76,12 @@ const PropertyDetail = () => {
             setIsTradingEnabled(false)
           }
         } else {
-          console.log('🔍 [DEBUG] PropertyDetail: Web3Service not available, assuming trading disabled')
+
           setIsTradingEnabled(false)
         }
       } else {
         setIsTradingEnabled(false)
-        console.log('🔍 [DEBUG] PropertyDetail: Property is not fractionalized, trading disabled')
+
       }
 
     } catch (error) {
@@ -128,14 +118,9 @@ const PropertyDetail = () => {
 
     try {
       setIsBuying(true)
-      
-      console.log('🔍 [DEBUG] PropertyDetail: Starting share purchase...')
-      console.log('🔍 [DEBUG] PropertyDetail: Property tokenId:', property.tokenId)
-      console.log('🔍 [DEBUG] PropertyDetail: Shares to buy:', sharesToBuy)
-      
+
       const receipt = await web3Service.purchaseShares(property.tokenId, sharesToBuy)
-      console.log('🔍 [DEBUG] PropertyDetail: Purchase receipt:', receipt)
-      
+
       toast.success(`Successfully purchased ${sharesToBuy} shares!`)
       
       // Wait a moment for blockchain state to update
@@ -143,20 +128,19 @@ const PropertyDetail = () => {
       
       // Get updated shares sold count from blockchain
       try {
-        console.log('🔍 [DEBUG] PropertyDetail: Getting updated shares sold count...')
+
         const sharesSoldCount = await web3Service.getSharesSoldCount(property.tokenId)
-        console.log('🔍 [DEBUG] PropertyDetail: Updated shares sold count:', sharesSoldCount)
-        
+
         // Update database with new shares sold count
         await apiService.updateSharesSold(property._id, sharesSoldCount)
-        console.log('🔍 [DEBUG] PropertyDetail: Database updated with shares sold count')
+
       } catch (updateError) {
         console.error('❌ [ERROR] PropertyDetail: Error updating shares sold count:', updateError)
         // Continue anyway, the purchase was successful
       }
       
       // Reload data
-      console.log('🔍 [DEBUG] PropertyDetail: Reloading property details after purchase...')
+
       await loadPropertyDetails()
       
     } catch (error) {

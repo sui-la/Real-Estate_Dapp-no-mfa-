@@ -4,14 +4,20 @@
   "description": "A decentralized application for real estate fractionalization",
   "main": "index.js",
   "scripts": {
+    "start": "node scripts/start-dapp.js",
+    "start:windows": "start-dapp.bat",
+    "start:unix": "./start-dapp.sh",
     "dev": "concurrently \"npm run dev:frontend\" \"npm run dev:backend\"",
     "dev:frontend": "cd frontend && npm run dev",
     "dev:backend": "cd backend && npm run dev",
     "build": "cd frontend && npm run build",
-    "install:all": "npm install && cd frontend && npm install && cd ../backend && npm install",
+    "install:all": "npm install && cd frontend && npm install && cd ../backend && npm install && cd ../contracts && npm install",
     "compile": "cd contracts && npx hardhat compile",
     "test": "cd contracts && npx hardhat test",
-    "deploy": "cd contracts && npx hardhat run scripts/deploy.js"
+    "deploy": "cd contracts && npx hardhat run deploy.js --network localhost",
+    "deploy:check": "cd contracts && npx hardhat run deploy.js --network localhost && node ../scripts/update-addresses.js",
+    "hardhat:node": "cd contracts && npx hardhat node",
+    "hardhat:fork": "cd contracts && npx hardhat node --fork https://eth-sepolia.g.alchemy.com/v2/YOUR_API_KEY"
   },
   "keywords": ["blockchain", "ethereum", "real-estate", "fractionalization", "dapp"],
   "author": "Real Estate Fractionalization Team",

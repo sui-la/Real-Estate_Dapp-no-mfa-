@@ -7,22 +7,25 @@ const Web3Context = createContext()
 
 // Contract ABIs (simplified for demo - in production, these would be imported from compiled contracts)
 const REAL_ESTATE_FRACTIONALIZATION_ABI = [
-  "function createAndFractionalizeProperty(string memory name, string memory description, string memory location, uint256 totalValue, uint256 totalShares, string memory imageUrl, string[] memory documents, string memory fractionalTokenName, string memory fractionalTokenSymbol) external returns (uint256 propertyTokenId, address fractionalTokenAddress)",
+  // Essential functions for the app to work
+  "function createAndFractionalizeProperty(string name, string description, string location, uint256 totalValue, uint256 totalShares, string imageUrl, string[] documents, string fractionalTokenName, string fractionalTokenSymbol) external returns (uint256, address)",
   "function purchaseShares(uint256 propertyTokenId, uint256 shares) external payable",
+  "function getPropertyDetails(uint256 propertyTokenId) external view returns (tuple(uint256,string,string,string,uint256,uint256,uint256,address,bool,uint256,string,string[]), address, bool)",
+  "function getUserOwnershipInfo(address user, uint256 propertyTokenId) external view returns (uint256, uint256, uint256)",
+  "function getContractAddresses() external view returns (address, address, address)",
+  "function fractionalTokens(uint256) external view returns (address)",
+  "function isPropertyFractionalized(uint256) external view returns (bool)",
+  
+  // Additional functions
   "function sellShares(uint256 propertyTokenId, uint256 shares) external",
   "function createSellOrder(uint256 propertyTokenId, uint256 shares, uint256 pricePerShare, uint256 expiresIn) external returns (uint256)",
   "function createBuyOrder(uint256 propertyTokenId, uint256 shares, uint256 pricePerShare, uint256 expiresIn) external payable returns (uint256)",
-  "function distributeDividends(uint256 propertyTokenId, string memory description) external payable",
+  "function distributeDividends(uint256 propertyTokenId, string description) external payable",
   "function claimDividend(uint256 dividendId) external",
-  "function batchClaimDividends(uint256[] memory dividendIds) external",
-  "function getPropertyDetails(uint256 propertyTokenId) external view returns (tuple(uint256 tokenId, string name, string description, string location, uint256 totalValue, uint256 totalShares, uint256 sharesSold, address originalOwner, bool isActive, uint256 createdAt, string imageUrl, string[] documents) property, address fractionalTokenAddress, bool isFractionalized)",
-  "function getUserOwnershipInfo(address user, uint256 propertyTokenId) external view returns (uint256 ownershipPercentage, uint256 sharesOwned, uint256 propertyValueOwned)",
-  "function getActiveOrders(uint256 propertyTokenId) external view returns (uint256[] memory)",
-  "function getPropertyDividends(uint256 propertyTokenId) external view returns (uint256[] memory)",
+  "function batchClaimDividends(uint256[] dividendIds) external",
+  "function getActiveOrders(uint256 propertyTokenId) external view returns (uint256[])",
+  "function getPropertyDividends(uint256 propertyTokenId) external view returns (uint256[])",
   "function getTotalClaimableDividends(address user) external view returns (uint256)",
-  "function getContractAddresses() external view returns (address propertyTokenAddress, address tradingPlatformAddress, address dividendDistributorAddress)",
-  "function fractionalTokens(uint256) external view returns (address)",
-  "function isPropertyFractionalized(uint256) external view returns (bool)",
   "function enableTrading(uint256 propertyTokenId) external",
   "function disableTrading(uint256 propertyTokenId) external"
 ]
@@ -59,7 +62,8 @@ const TRADING_PLATFORM_ABI = [
   "function getOrder(uint256 orderId) external view returns (tuple(uint256 orderId, address seller, address buyer, uint256 propertyTokenId, address fractionalTokenAddress, uint256 shares, uint256 pricePerShare, bool isBuyOrder, bool isActive, uint256 createdAt, uint256 expiresAt))",
   "function platformFee() external view returns (uint256)",
   "function updatePlatformFee(uint256 newFee) external",
-  "function withdrawFees() external"
+  "function withdrawFees() external",
+  "function getContractBalance() external view returns (uint256)"
 ]
 
 const DIVIDEND_DISTRIBUTOR_ABI = [
@@ -72,7 +76,8 @@ const DIVIDEND_DISTRIBUTOR_ABI = [
   "function getDividend(uint256 dividendId) external view returns (tuple(uint256 propertyTokenId, address fractionalTokenAddress, uint256 totalAmount, uint256 distributedAmount, uint256 timestamp, string description, bool isActive))",
   "function getTotalDividends() external view returns (uint256)",
   "function deactivateDividend(uint256 dividendId) external",
-  "function withdrawUnclaimedDividend(uint256 dividendId, uint256 amount) external"
+  "function withdrawUnclaimedDividend(uint256 dividendId, uint256 amount) external",
+  "function hasClaimedDividend(address, uint256) external view returns (bool)"
 ]
 
 export const Web3Provider = ({ children }) => {
@@ -85,24 +90,13 @@ export const Web3Provider = ({ children }) => {
   const [contracts, setContracts] = useState({})
   const [web3Service, setWeb3Service] = useState(null)
 
-  // Contract addresses (automatically updated by deployment script)
+  // Contract addresses (from environment variables, updated by deployment script)
   const CONTRACT_ADDRESSES = {
-    RealEstateFractionalization: "0x1613beB3B2C4f22Ee086B2b38C1476A3cE7f78E8", // FRESH DEPLOYMENT
-    PropertyToken: "0x9467A509DA43CB50EB332187602534991Be1fEa4", // FRESH DEPLOYMENT
-    TradingPlatform: "0x7bc9A7e2bDf4c4f6b1Ff8Cff272310a4b17F783d", // FRESH DEPLOYMENT
-    DividendDistributor: "0x8b89239aca8527bFa52A144faEc4B0EB99052D03", // FRESH DEPLOYMENT
+    RealEstateFractionalization: import.meta.env.VITE_MAIN_CONTRACT_ADDRESS || "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+    PropertyToken: import.meta.env.VITE_PROPERTY_TOKEN_ADDRESS || "0xa16E02E87b7454126E5E10d957A927A7F5B5d2be",
+    TradingPlatform: import.meta.env.VITE_TRADING_PLATFORM_ADDRESS || "0xB7A5bd0345EF1Cc5E66bf61BdeC17D2461fBd968",
+    DividendDistributor: import.meta.env.VITE_DIVIDEND_DISTRIBUTOR_ADDRESS || "0xeEBe00Ac0756308ac4AaBfD76c05c4F3088B8883",
   }
-
-  
-  // Debug logging
-  console.log('🔍 [DEBUG] Web3Context: Environment variables:', {
-    VITE_MAIN_CONTRACT_ADDRESS: import.meta.env.VITE_MAIN_CONTRACT_ADDRESS,
-    VITE_PROPERTY_TOKEN_ADDRESS: import.meta.env.VITE_PROPERTY_TOKEN_ADDRESS,
-    VITE_TRADING_PLATFORM_ADDRESS: import.meta.env.VITE_TRADING_PLATFORM_ADDRESS,
-    VITE_DIVIDEND_DISTRIBUTOR_ADDRESS: import.meta.env.VITE_DIVIDEND_DISTRIBUTOR_ADDRESS
-  })
-  console.log('🔍 [DEBUG] Web3Context: Final contract addresses:', CONTRACT_ADDRESSES)
-  console.log('🔍 [DEBUG] Web3Context: CACHE BUST - Timestamp:', Date.now())
 
   useEffect(() => {
     initializeWeb3()
@@ -114,48 +108,79 @@ export const Web3Provider = ({ children }) => {
 
       // Check for MetaMask first
       if (typeof window.ethereum !== 'undefined') {
+        console.log('🔗 MetaMask detected, initializing Web3Provider...')
         web3Provider = new ethers.BrowserProvider(window.ethereum)
-        console.log('Using MetaMask provider')
+        
+        // Check if already connected (only for MetaMask)
+        try {
+          const accounts = await web3Provider.listAccounts()
+          console.log('👥 MetaMask accounts:', accounts.length)
+          if (accounts.length > 0) {
+            setProvider(web3Provider)
+            await connectWallet()
+          } else {
+            setProvider(web3Provider)
+          }
+
+          // Listen for account changes
+          window.ethereum.on('accountsChanged', handleAccountsChanged)
+          window.ethereum.on('chainChanged', handleChainChanged)
+        } catch (error) {
+          console.warn('MetaMask connection check failed:', error)
+          setProvider(web3Provider)
+        }
       } else {
         // Fallback to local Hardhat node for development
+        console.log('🔧 No MetaMask detected, trying local Hardhat node...')
         const localProvider = new ethers.JsonRpcProvider('http://localhost:8545')
         
         // Test if Hardhat node is available
         try {
           await localProvider.getNetwork()
+          console.log('✅ Hardhat node connected successfully')
           web3Provider = localProvider
-          console.log('Using local Hardhat provider')
-        } catch (error) {
-          console.error('Hardhat node not available:', error)
-          toast.error('Please install MetaMask or start Hardhat node')
-          return
-        }
-      }
-
-      setProvider(web3Provider)
-
-      // Check if already connected (only for MetaMask)
-      if (typeof window.ethereum !== 'undefined') {
-        const accounts = await web3Provider.listAccounts()
-        if (accounts.length > 0) {
+          setProvider(web3Provider)
+          
+          // Auto-connect to local Hardhat for development
           await connectWallet()
+        } catch (error) {
+          console.error('❌ Hardhat node not available:', error)
+          // Don't show error toast immediately, let user try to connect first
         }
-
-        // Listen for account changes
-        window.ethereum.on('accountsChanged', handleAccountsChanged)
-        window.ethereum.on('chainChanged', handleChainChanged)
       }
+
+      console.log('✅ Web3 initialization completed, provider set:', !!web3Provider)
 
     } catch (error) {
-      console.error('Error initializing Web3:', error)
-      toast.error('Failed to initialize Web3')
+      console.error('❌ Error initializing Web3:', error)
+      // Don't show error toast immediately, let user try to connect first
     }
   }
 
   const connectWallet = async () => {
-    if (!provider) {
-      toast.error('Web3 provider not available')
-      return
+    // Get the current provider (either from state or create a new one)
+    let currentProvider = provider
+    
+    if (!currentProvider) {
+      // Try to create provider if not available
+      try {
+        console.log('No provider available, creating new one...')
+        
+        if (typeof window.ethereum !== 'undefined') {
+          currentProvider = new ethers.BrowserProvider(window.ethereum)
+        } else {
+          currentProvider = new ethers.JsonRpcProvider('http://localhost:8545')
+          // Test if Hardhat node is available
+          await currentProvider.getNetwork()
+        }
+        
+        // Update the provider state
+        setProvider(currentProvider)
+      } catch (error) {
+        console.error('Could not create provider:', error)
+        toast.error('Web3 provider not available. Please install MetaMask or start Hardhat node.')
+        return
+      }
     }
 
     try {
@@ -170,15 +195,15 @@ export const Web3Provider = ({ children }) => {
         })
       } else {
         // For local Hardhat node, use the first account
-        const signer = await provider.getSigner(0)
+        const signer = await currentProvider.getSigner(0)
         const address = await signer.getAddress()
         accounts = [address]
       }
 
       if (accounts.length > 0) {
-        const web3Signer = await provider.getSigner()
+        const web3Signer = await currentProvider.getSigner()
         const address = await web3Signer.getAddress()
-        const network = await provider.getNetwork()
+        const network = await currentProvider.getNetwork()
 
         setSigner(web3Signer)
         setAccount(address)
@@ -210,8 +235,7 @@ export const Web3Provider = ({ children }) => {
 
   const initializeContracts = async (web3Signer) => {
     try {
-      console.log('🔍 [DEBUG] Initializing contracts...')
-      console.log('🔍 [DEBUG] Using contract addresses:', CONTRACT_ADDRESSES)
+      console.log('🏗️  Initializing contracts with addresses:', CONTRACT_ADDRESSES)
       
       const realEstateContract = new ethers.Contract(
         CONTRACT_ADDRESSES.RealEstateFractionalization,
@@ -219,31 +243,31 @@ export const Web3Provider = ({ children }) => {
         web3Signer
       )
 
-      console.log('🔍 [DEBUG] Main contract created at:', realEstateContract.target)
+      console.log('✅ Main contract initialized:', CONTRACT_ADDRESSES.RealEstateFractionalization)
 
       // Get additional contract addresses from the main contract
       let propertyTokenAddress, tradingPlatformAddress, dividendDistributorAddress
       
       try {
-        console.log('🔍 [DEBUG] Getting contract addresses from main contract...')
-        [propertyTokenAddress, tradingPlatformAddress, dividendDistributorAddress] = 
+        console.log('🔍 Getting contract addresses from main contract...')
+        ;[propertyTokenAddress, tradingPlatformAddress, dividendDistributorAddress] = 
           await realEstateContract.getContractAddresses()
-        
-        console.log('🔍 [DEBUG] Contract addresses from main contract:')
-        console.log('  - PropertyToken:', propertyTokenAddress)
-        console.log('  - TradingPlatform:', tradingPlatformAddress)
-        console.log('  - DividendDistributor:', dividendDistributorAddress)
+        console.log('✅ Contract addresses retrieved:', {
+          propertyTokenAddress,
+          tradingPlatformAddress,
+          dividendDistributorAddress
+        })
       } catch (error) {
-        console.warn('⚠️ [WARNING] Could not get contract addresses from main contract, using environment addresses:', error)
+        console.warn('⚠️  Could not get contract addresses from main contract, using environment addresses:', error)
         // Fallback to environment addresses
         propertyTokenAddress = CONTRACT_ADDRESSES.PropertyToken
         tradingPlatformAddress = CONTRACT_ADDRESSES.TradingPlatform
         dividendDistributorAddress = CONTRACT_ADDRESSES.DividendDistributor
-        
-        console.log('🔍 [DEBUG] Using fallback addresses:')
-        console.log('  - PropertyToken:', propertyTokenAddress)
-        console.log('  - TradingPlatform:', tradingPlatformAddress)
-        console.log('  - DividendDistributor:', dividendDistributorAddress)
+        console.log('🔄 Using fallback addresses:', {
+          propertyTokenAddress,
+          tradingPlatformAddress,
+          dividendDistributorAddress
+        })
       }
 
       const propertyTokenContract = new ethers.Contract(
@@ -264,13 +288,6 @@ export const Web3Provider = ({ children }) => {
         web3Signer
       )
 
-      console.log('🔍 [DEBUG] All contracts created successfully')
-      console.log('🔍 [DEBUG] Contract addresses:')
-      console.log('  - RealEstate:', realEstateContract.target)
-      console.log('  - PropertyToken:', propertyTokenContract.target)
-      console.log('  - TradingPlatform:', tradingPlatformContract.target)
-      console.log('  - DividendDistributor:', dividendDistributorContract.target)
-
       const contractInstances = {
         realEstateFractionalization: realEstateContract,
         propertyToken: propertyTokenContract,
@@ -282,9 +299,8 @@ export const Web3Provider = ({ children }) => {
       setContracts(contractInstances)
       setWeb3Service(new Web3Service(contractInstances, web3Signer))
       
-      console.log('✅ [SUCCESS] Contracts initialized and Web3Service created')
     } catch (error) {
-      console.error('❌ [ERROR] Error initializing contracts:', error)
+      console.error('Error initializing contracts:', error)
       toast.error('Failed to initialize contracts')
     }
   }

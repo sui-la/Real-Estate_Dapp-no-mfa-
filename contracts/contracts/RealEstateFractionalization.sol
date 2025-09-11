@@ -67,7 +67,7 @@ contract RealEstateFractionalization is Ownable {
         string[] memory documents,
         string memory fractionalTokenName,
         string memory fractionalTokenSymbol
-    ) external onlyOwner returns (uint256 propertyTokenId, address fractionalTokenAddress) {
+    ) external returns (uint256 propertyTokenId, address fractionalTokenAddress) {
         // Create the property token
         propertyTokenId = propertyToken.createProperty(
             name,
@@ -137,7 +137,7 @@ contract RealEstateFractionalization is Ownable {
         
         address fractionalTokenAddress = fractionalTokens[propertyTokenId];
         FractionalToken fractionalToken = FractionalToken(fractionalTokenAddress);
-        fractionalToken.purchaseShares{value: msg.value}(shares);
+        fractionalToken.purchaseSharesFor{value: msg.value}(msg.sender, shares);
     }
     
     /**

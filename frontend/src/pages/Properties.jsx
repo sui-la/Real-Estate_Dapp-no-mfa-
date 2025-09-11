@@ -22,19 +22,44 @@ const Properties = () => {
   const [searchTerm, setSearchTerm] = useState('')
   const [filterType, setFilterType] = useState('all')
   const [sortBy, setSortBy] = useState('newest')
+  const [tradingStatusFilter, setTradingStatusFilter] = useState('all')
+  const [propertyTradingStatus, setPropertyTradingStatus] = useState({})
 
   useEffect(() => {
     loadProperties()
   }, [])
 
+  // Reload trading status when web3Service or connection changes
+  useEffect(() => {
+    if (web3Service && isConnected && properties.length > 0) {
+      const fetchTradingStatus = async () => {
+        const tradingStatusMap = {}
+        
+        for (const property of properties) {
+          if (property.tokenId) {
+            try {
+              const isEnabled = await web3Service.isTradingEnabled(property.tokenId)
+              tradingStatusMap[property.tokenId] = isEnabled
+            } catch (error) {
+              console.warn(`Could not check trading status for ${property.name}:`, error.message)
+              tradingStatusMap[property.tokenId] = false
+            }
+          }
+        }
+        
+        setPropertyTradingStatus(tradingStatusMap)
+      }
+
+      fetchTradingStatus()
+    }
+  }, [web3Service, isConnected, properties])
+
   const loadProperties = async () => {
     try {
       setLoading(true)
-      console.log('🔍 [DEBUG] Loading properties from database...')
-      
-      const response = await apiService.getProperties()
-      console.log('🔍 [DEBUG] Properties response:', response)
-      
+
+      const response = await apiService.getProperties({ limit: 1000 }) // Get all properties
+
       // Extract properties from the response
       const propertiesList = response.properties || response || []
       
@@ -42,9 +67,27 @@ const Properties = () => {
       const validProperties = Array.isArray(propertiesList) 
         ? propertiesList.filter(property => property && property._id)
         : []
-      
-      console.log('🔍 [DEBUG] Valid properties:', validProperties)
+
       setProperties(validProperties)
+
+      // Fetch trading status for each property that has a tokenId
+      if (web3Service && isConnected) {
+        const tradingStatusMap = {}
+        
+        for (const property of validProperties) {
+          if (property.tokenId) {
+            try {
+              const isEnabled = await web3Service.isTradingEnabled(property.tokenId)
+              tradingStatusMap[property.tokenId] = isEnabled
+            } catch (error) {
+              console.warn(`Could not check trading status for ${property.name}:`, error.message)
+              tradingStatusMap[property.tokenId] = false
+            }
+          }
+        }
+        
+        setPropertyTradingStatus(tradingStatusMap)
+      }
 
     } catch (error) {
       console.error('Error loading properties:', error)
@@ -66,19 +109,26 @@ const Properties = () => {
       matchesFilter = Number(property.sharesSold) >= Number(property.totalShares)
     }
 
-    return matchesSearch && matchesFilter
+    let matchesTradingStatus = true
+    if (tradingStatusFilter === 'enabled') {
+      matchesTradingStatus = property.tokenId && propertyTradingStatus[property.tokenId] === true
+    } else if (tradingStatusFilter === 'disabled') {
+      matchesTradingStatus = !property.tokenId || propertyTradingStatus[property.tokenId] === false
+    }
+
+    return matchesSearch && matchesFilter && matchesTradingStatus
   })
 
   const sortedProperties = [...filteredProperties].sort((a, b) => {
     switch (sortBy) {
       case 'newest':
-        return b.createdAt - a.createdAt
+        return new Date(b.createdAt) - new Date(a.createdAt)
       case 'oldest':
-        return a.createdAt - b.createdAt
+        return new Date(a.createdAt) - new Date(b.createdAt)
       case 'price-low':
-        return parseFloat(a.totalValueFormatted) - parseFloat(b.totalValueFormatted)
+        return Number(a.totalValue) - Number(b.totalValue)
       case 'price-high':
-        return parseFloat(b.totalValueFormatted) - parseFloat(a.totalValueFormatted)
+        return Number(b.totalValue) - Number(a.totalValue)
       case 'shares-available':
         return (Number(b.totalShares) - Number(b.sharesSold)) - (Number(a.totalShares) - Number(a.sharesSold))
       default:
@@ -149,6 +199,16 @@ const Properties = () => {
             </select>
 
             <select
+              value={tradingStatusFilter}
+              onChange={(e) => setTradingStatusFilter(e.target.value)}
+              className="input-field"
+            >
+              <option value="all">All Trading Status</option>
+              <option value="enabled">Trading Enabled</option>
+              <option value="disabled">Trading Disabled</option>
+            </select>
+
+            <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value)}
               className="input-field"
@@ -169,7 +229,7 @@ const Properties = () => {
           <BuildingOfficeIcon className="mx-auto h-12 w-12 text-gray-400" />
           <h3 className="mt-2 text-sm font-medium text-gray-900">No properties found</h3>
           <p className="mt-1 text-sm text-gray-500">
-            {searchTerm || filterType !== 'all' 
+            {searchTerm || filterType !== 'all' || tradingStatusFilter !== 'all'
               ? 'Try adjusting your search criteria' 
               : 'No properties have been listed yet'}
           </p>
@@ -184,11 +244,15 @@ const Properties = () => {
             return (
               <div key={property._id || property.id} className="card hover:shadow-xl transition-shadow duration-200">
                 {/* Property Image */}
-                <div className="aspect-w-16 aspect-h-9 mb-4">
+                <div className="mb-4">
                   <img
                     src={property.imageUrl || 'https://images.unsplash.com/photo-1560518883-ce09059eeffa?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80'}
                     alt={property.name}
                     className="w-full h-48 object-cover rounded-lg"
+                    onError={(e) => {
+                      console.error('Image failed to load:', property.imageUrl)
+                      e.target.src = 'https://images.unsplash.com/photo-1560518883-ce09059eeffa?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80'
+                    }}
                   />
                 </div>
 
@@ -198,9 +262,35 @@ const Properties = () => {
                     <h3 className="text-lg font-semibold text-gray-900 line-clamp-2">
                       {property.name}
                     </h3>
-                    <span className={`px-2 py-1 text-xs font-medium rounded-full ${availability.color}`}>
-                      {availability.status}
-                    </span>
+                    <div className="flex flex-col gap-1">
+                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${availability.color}`}>
+                        {availability.status}
+                      </span>
+                      {property.tokenId ? (
+                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                          propertyTradingStatus[property.tokenId] 
+                            ? 'bg-green-100 text-green-800' 
+                            : 'bg-red-100 text-red-800'
+                        }`}>
+                          {propertyTradingStatus[property.tokenId] ? (
+                            <>
+                              <span className="inline-block w-1.5 h-1.5 bg-green-400 rounded-full mr-1"></span>
+                              Trading
+                            </>
+                          ) : (
+                            <>
+                              <span className="inline-block w-1.5 h-1.5 bg-red-400 rounded-full mr-1"></span>
+                              No Trading
+                            </>
+                          )}
+                        </span>
+                      ) : (
+                        <span className="px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-600">
+                          <span className="inline-block w-1.5 h-1.5 bg-gray-400 rounded-full mr-1"></span>
+                          Not Listed
+                        </span>
+                      )}
+                    </div>
                   </div>
 
                   <div className="flex items-center text-sm text-gray-600">
@@ -275,7 +365,7 @@ const Properties = () => {
             </div>
             <div className="text-center">
               <div className="text-2xl font-bold text-green-600">
-                ${properties.reduce((sum, p) => sum + (parseFloat(p.totalValueFormatted) || 0), 0).toLocaleString()}
+                ${properties.reduce((sum, p) => sum + (parseFloat(p.totalValue) || 0), 0).toLocaleString()}
               </div>
               <div className="text-sm text-gray-600">Total Value</div>
             </div>

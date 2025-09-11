@@ -12,7 +12,6 @@ class Web3Service {
   // Property Management
   async createProperty(propertyData) {
     try {
-      console.log('🔍 [DEBUG] Web3Service: Starting createProperty with data:', propertyData)
       
       const {
         name,
@@ -25,21 +24,6 @@ class Web3Service {
         fractionalTokenName,
         fractionalTokenSymbol
       } = propertyData
-
-      console.log('🔍 [DEBUG] Web3Service: Contract address:', this.contracts.realEstateFractionalization?.target)
-      console.log('🔍 [DEBUG] Web3Service: Contract exists:', !!this.contracts.realEstateFractionalization)
-      
-      console.log('🔍 [DEBUG] Web3Service: Calling createAndFractionalizeProperty with params:', {
-        name,
-        description,
-        location,
-        totalValue: ethers.parseEther(totalValue.toString()),
-        totalShares,
-        imageUrl,
-        documents,
-        fractionalTokenName,
-        fractionalTokenSymbol
-      })
 
       const tx = await this.contracts.realEstateFractionalization.createAndFractionalizeProperty(
         name,
@@ -59,20 +43,15 @@ class Web3Service {
       
       // Additional debugging for transaction logs
       if (receipt.logs && receipt.logs.length > 0) {
-        console.log('🔍 [DEBUG] Web3Service: Transaction logs count:', receipt.logs.length)
+
         for (let i = 0; i < receipt.logs.length; i++) {
           const log = receipt.logs[i]
-          console.log(`🔍 [DEBUG] Web3Service: Log ${i}:`, {
-            address: log.address,
-            topics: log.topics,
-            data: log.data
-          })
-          
+
           try {
             const decoded = this.contracts.realEstateFractionalization.interface.parseLog(log)
-            console.log(`🔍 [DEBUG] Web3Service: Decoded log ${i}:`, decoded)
+
           } catch (e) {
-            console.log(`🔍 [DEBUG] Web3Service: Could not decode log ${i}:`, e.message)
+
           }
         }
       }
@@ -91,14 +70,10 @@ class Web3Service {
 
   async getPropertyDetails(propertyId) {
     try {
-      console.log('🔍 [DEBUG] getPropertyDetails called with propertyId:', propertyId)
-      console.log('🔍 [DEBUG] Available contracts:', Object.keys(this.contracts))
-      console.log('🔍 [DEBUG] Main contract address:', this.contracts.realEstateFractionalization?.target)
-      
+
       const [property, fractionalTokenAddress, isFractionalized] = 
         await this.contracts.realEstateFractionalization.getPropertyDetails(propertyId)
 
-      console.log('🔍 [DEBUG] Raw contract response:')
       console.log('  - Property:', property)
       console.log('  - Fractional token address:', fractionalTokenAddress)
       console.log('  - Is fractionalized:', isFractionalized)
@@ -113,7 +88,7 @@ class Web3Service {
             this.signer
           )
           tradingEnabled = await fractionalToken.tradingEnabled()
-          console.log('🔍 [DEBUG] Trading enabled:', tradingEnabled)
+
         } catch (error) {
           console.error('❌ [ERROR] Failed to check trading status:', error)
           tradingEnabled = false
@@ -141,15 +116,6 @@ class Web3Service {
         sharePrice: ethers.formatEther(property.totalValue / Math.max(property.totalShares, 1))
       }
 
-      console.log('🔍 [DEBUG] Processed result:', result)
-      console.log('🔍 [DEBUG] Total shares:', result.totalShares)
-      console.log('🔍 [DEBUG] Shares sold:', result.sharesSold)
-      console.log('🔍 [DEBUG] Available shares:', result.availableShares)
-      console.log('🔍 [DEBUG] Available shares calculation:', `${result.totalShares} - ${result.sharesSold} = ${result.availableShares}`)
-      console.log('🔍 [DEBUG] Trading enabled:', result.tradingEnabled)
-      console.log('🔍 [DEBUG] Is fractionalized:', result.isFractionalized)
-      console.log('🔍 [DEBUG] Fractional token address:', result.fractionalTokenAddress)
-      
       return result
     } catch (error) {
       console.error('❌ [ERROR] getPropertyDetails failed:', error)
@@ -164,26 +130,22 @@ class Web3Service {
 
   async getAllProperties() {
     try {
-      console.log('🔍 [DEBUG] getAllProperties called')
-      console.log('🔍 [DEBUG] PropertyToken contract address:', this.contracts.propertyToken?.target)
-      
+
       const totalProperties = await this.contracts.propertyToken.getTotalProperties()
-      console.log('🔍 [DEBUG] Total properties from contract:', totalProperties.toString())
-      
+
       const properties = []
 
       // Handle case when no properties exist yet
       if (totalProperties === 0n || totalProperties === 0) {
-        console.log('🔍 [DEBUG] No properties found, returning empty array')
+
         return properties
       }
 
       for (let i = 1; i <= totalProperties; i++) {
         try {
-          console.log(`🔍 [DEBUG] Loading property ${i}...`)
+
           const property = await this.contracts.propertyToken.getProperty(i)
-          console.log(`🔍 [DEBUG] Property ${i} data:`, property)
-          
+
           if (property.isActive) {
             const processedProperty = {
               id: i,
@@ -201,18 +163,16 @@ class Web3Service {
               totalValueFormatted: ethers.formatEther(property.totalValue || 0),
               sharePrice: ethers.formatEther((property.totalValue || 0) / Math.max(property.totalShares || 1, 1))
             }
-            
-            console.log(`🔍 [DEBUG] Processed property ${i}:`, processedProperty)
+
             properties.push(processedProperty)
           } else {
-            console.log(`🔍 [DEBUG] Property ${i} is inactive, skipping`)
+
           }
         } catch (error) {
           console.error(`❌ [ERROR] Error loading property ${i}:`, error)
         }
       }
 
-      console.log('🔍 [DEBUG] Final properties array:', properties)
       return properties
     } catch (error) {
       console.error('❌ [ERROR] getAllProperties failed:', error)
@@ -223,9 +183,7 @@ class Web3Service {
   // Share Trading
   async enableTrading(propertyId) {
     try {
-      console.log('🔍 [DEBUG] Web3Service: Enabling trading for property:', propertyId)
-      console.log('🔍 [DEBUG] Web3Service: Contract address:', this.contracts.realEstateFractionalization?.target)
-      
+
       const tx = await this.contracts.realEstateFractionalization.enableTrading(propertyId)
       console.log('✅ [SUCCESS] Web3Service: Trading enable transaction sent:', tx.hash)
       
@@ -271,11 +229,26 @@ class Web3Service {
 
   async purchaseShares(propertyId, shares) {
     try {
-      console.log('🔍 [DEBUG] Web3Service: purchaseShares called with:', { propertyId, shares })
-      console.log('🔍 [DEBUG] Web3Service: Using contract address:', this.contracts.realEstateFractionalization.target)
-      console.log('🔍 [DEBUG] Web3Service: CACHE BUST - Timestamp:', Date.now())
+      console.log('🔄 [DEBUG] purchaseShares starting...')
+      console.log('🔄 [DEBUG] propertyId:', propertyId)
+      console.log('🔄 [DEBUG] shares:', shares)
+      console.log('🔄 [DEBUG] signer address:', await this.signer.getAddress())
+
+      // Check if property is fractionalized
+      const isPropertyFractionalized = await this.contracts.realEstateFractionalization.isPropertyFractionalized(propertyId)
+      console.log('🔄 [DEBUG] isPropertyFractionalized:', isPropertyFractionalized)
       
+      if (!isPropertyFractionalized) {
+        throw new Error(`Property ${propertyId} is not fractionalized`)
+      }
+
       const fractionalTokenAddress = await this.contracts.realEstateFractionalization.fractionalTokens(propertyId)
+      console.log('🔄 [DEBUG] fractionalTokenAddress:', fractionalTokenAddress)
+      
+      if (fractionalTokenAddress === '0x0000000000000000000000000000000000000000') {
+        throw new Error(`No fractional token found for property ${propertyId}`)
+      }
+
       const fractionalToken = new ethers.Contract(
         fractionalTokenAddress,
         this.getFractionalTokenABI(),
@@ -284,16 +257,40 @@ class Web3Service {
 
       const sharePrice = await fractionalToken.sharePrice()
       const totalCost = sharePrice * BigInt(shares)
+      console.log('🔄 [DEBUG] sharePrice:', ethers.formatEther(sharePrice), 'ETH')
+      console.log('🔄 [DEBUG] totalCost:', ethers.formatEther(totalCost), 'ETH')
 
+      // Check user balance
+      const userBalance = await this.signer.provider.getBalance(await this.signer.getAddress())
+      console.log('🔄 [DEBUG] userBalance:', ethers.formatEther(userBalance), 'ETH')
+      
+      if (userBalance < totalCost) {
+        throw new Error(`Insufficient balance. Need ${ethers.formatEther(totalCost)} ETH but have ${ethers.formatEther(userBalance)} ETH`)
+      }
+
+      console.log('🔄 [DEBUG] Calling purchaseShares on main contract...')
       const tx = await this.contracts.realEstateFractionalization.purchaseShares(propertyId, shares, {
-        value: totalCost
+        value: totalCost,
+        gasLimit: 500000 // Add explicit gas limit
       })
 
+      console.log('🔄 [DEBUG] Transaction sent:', tx.hash)
       const receipt = await tx.wait()
+      console.log('✅ [SUCCESS] Transaction confirmed:', receipt.hash)
       return receipt
     } catch (error) {
-      console.error('Error purchasing shares:', error)
-      throw error
+      console.error('❌ [ERROR] Error purchasing shares:', error)
+      
+      // Better error messages
+      if (error.message.includes('missing revert data')) {
+        throw new Error('Smart contract call failed. Please check MetaMask is connected to localhost:8545 and contracts are deployed.')
+      } else if (error.message.includes('insufficient funds')) {
+        throw new Error('Insufficient ETH balance to complete purchase.')
+      } else if (error.message.includes('user rejected')) {
+        throw new Error('Transaction was rejected by user.')
+      } else {
+        throw error
+      }
     }
   }
 
@@ -365,16 +362,6 @@ class Web3Service {
     }
   }
 
-  async cancelOrder(orderId) {
-    try {
-      const tx = await this.contracts.tradingPlatform.cancelOrder(orderId)
-      const receipt = await tx.wait()
-      return receipt
-    } catch (error) {
-      console.error('Error cancelling order:', error)
-      throw error
-    }
-  }
 
   async getActiveOrders(propertyId) {
     try {
@@ -468,16 +455,26 @@ class Web3Service {
     }
   }
 
+  async getClaimableDividend(userAddress, dividendId) {
+    try {
+      console.log('🔍 [DEBUG] Web3Service: Getting claimable dividend for user:', userAddress, 'dividend:', dividendId)
+      const claimableAmount = await this.contracts.dividendDistributor.getClaimableDividend(userAddress, BigInt(dividendId))
+      const formatted = ethers.formatEther(claimableAmount)
+      console.log('💰 [DEBUG] Web3Service: Claimable amount:', formatted, 'ETH')
+      return formatted
+    } catch (error) {
+      console.error('❌ [ERROR] Web3Service: Error getting claimable dividend:', error)
+      return '0'
+    }
+  }
+
   // User Portfolio
   async getUserOwnershipInfo(userAddress, propertyId) {
     try {
-      console.log('🔍 [DEBUG] Web3Service: Getting user ownership info for:', { userAddress, propertyId })
-      console.log('🔍 [DEBUG] Web3Service: Contract address:', this.contracts.realEstateFractionalization.target)
-      
+
       // Get fractional token address first
       const fractionalTokenAddress = await this.contracts.realEstateFractionalization.fractionalTokens(propertyId)
-      console.log('🔍 [DEBUG] Web3Service: Fractional token address:', fractionalTokenAddress)
-      
+
       // Check balance directly from fractional token
       const FRACTIONAL_TOKEN_ABI = [
         "function balanceOf(address account) external view returns (uint256)",
@@ -495,12 +492,9 @@ class Web3Service {
       ]
       const fractionalTokenContract = new ethers.Contract(fractionalTokenAddress, FRACTIONAL_TOKEN_ABI, this.signer)
       const directBalance = await fractionalTokenContract.balanceOf(userAddress)
-      console.log('🔍 [DEBUG] Web3Service: Direct balance from fractional token:', directBalance.toString())
-      
+
       const [ownershipPercentage, sharesOwned, propertyValueOwned] = 
         await this.contracts.realEstateFractionalization.getUserOwnershipInfo(userAddress, propertyId)
-
-      console.log('🔍 [DEBUG] Web3Service: Raw ownership data:', { ownershipPercentage, sharesOwned, propertyValueOwned })
 
       return {
         ownershipPercentage: Number(ownershipPercentage),
@@ -516,26 +510,22 @@ class Web3Service {
 
   async getUserPortfolio(userAddress) {
     try {
-      console.log('🔍 [DEBUG] Web3Service: Getting user portfolio for:', userAddress)
-      
+
       const properties = await this.getAllProperties()
-      console.log('🔍 [DEBUG] Web3Service: Found properties:', properties.length)
-      
+
       const portfolio = []
 
       for (const property of properties) {
         try {
-          console.log('🔍 [DEBUG] Web3Service: Checking ownership for property:', property.id)
+
           const ownership = await this.getUserOwnershipInfo(userAddress, property.id)
-          console.log('🔍 [DEBUG] Web3Service: Ownership info:', ownership)
-          
+
           if (parseFloat(ownership.sharesOwned) > 0) {
             // Get claimable dividends for this property
             let claimableDividends = 0
             try {
               const propertyDividends = await this.getPropertyDividends(property.id)
-              console.log('🔍 [DEBUG] Web3Service: Property dividends:', propertyDividends)
-              
+
               for (const dividend of propertyDividends) {
                 const claimable = await this.getClaimableDividend(userAddress, dividend.id)
                 claimableDividends += parseFloat(claimable)
@@ -549,20 +539,13 @@ class Web3Service {
               ...ownership,
               claimableDividends: claimableDividends.toString()
             })
-            
-            console.log('🔍 [DEBUG] Web3Service: Added to portfolio:', {
-              id: property.id,
-              name: property.name,
-              sharesOwned: ownership.sharesOwned,
-              claimableDividends
-            })
+
           }
         } catch (error) {
           console.error(`❌ [ERROR] Web3Service: Error getting ownership for property ${property.id}:`, error)
         }
       }
 
-      console.log('🔍 [DEBUG] Web3Service: Final portfolio:', portfolio)
       return portfolio
     } catch (error) {
       console.error('❌ [ERROR] Web3Service: Error getting user portfolio:', error)
@@ -586,24 +569,19 @@ class Web3Service {
   // Debug Functions
   async debugPropertyCreation(tokenId) {
     try {
-      console.log('🔍 [DEBUG] Web3Service: Debugging property creation for tokenId:', tokenId)
-      
+
       // Check if property exists
       const propertyExists = await this.contracts.propertyToken.propertyExists(tokenId)
-      console.log('🔍 [DEBUG] Web3Service: Property exists:', propertyExists)
-      
+
       if (propertyExists) {
         const property = await this.contracts.propertyToken.getProperty(tokenId)
-        console.log('🔍 [DEBUG] Web3Service: Property details:', property)
-        
+
         const fractionalTokenAddress = await this.contracts.realEstateFractionalization.fractionalTokens(tokenId)
-        console.log('🔍 [DEBUG] Web3Service: Fractional token address:', fractionalTokenAddress)
-        
+
         const isFractionalized = await this.contracts.realEstateFractionalization.isPropertyFractionalized(tokenId)
-        console.log('🔍 [DEBUG] Web3Service: Is fractionalized:', isFractionalized)
-        
+
         const propertyDetails = await this.contracts.realEstateFractionalization.getPropertyDetails(tokenId)
-        console.log('🔍 [DEBUG] Web3Service: Full property details:', propertyDetails)
+
       }
       
       return {
@@ -619,13 +597,11 @@ class Web3Service {
 
   async getSharesSoldCount(tokenId) {
     try {
-      console.log('🔍 [DEBUG] Web3Service: Getting shares sold count for tokenId:', tokenId)
-      
+
       const fractionalTokenAddress = await this.contracts.realEstateFractionalization.fractionalTokens(tokenId)
-      console.log('🔍 [DEBUG] Web3Service: Fractional token address:', fractionalTokenAddress)
-      
+
       if (fractionalTokenAddress === '0x0000000000000000000000000000000000000000') {
-        console.log('🔍 [DEBUG] Web3Service: No fractional token, returning 0')
+
         return 0
       }
       
@@ -637,16 +613,11 @@ class Web3Service {
       
       const totalSupply = await fractionalToken.totalSupply()
       const contractBalance = await fractionalToken.balanceOf(fractionalTokenAddress)
-      
-      console.log('🔍 [DEBUG] Web3Service: Total supply:', totalSupply.toString())
-      console.log('🔍 [DEBUG] Web3Service: Contract balance:', contractBalance.toString())
-      
+
       // Calculate shares sold: total supply - contract balance
       const sharesSold = totalSupply - contractBalance
       const sharesSoldFormatted = Number(ethers.formatEther(sharesSold))
-      
-      console.log('🔍 [DEBUG] Web3Service: Shares sold:', sharesSoldFormatted)
-      
+
       return sharesSoldFormatted
     } catch (error) {
       console.error('❌ [ERROR] Web3Service: Error getting shares sold count:', error)
@@ -675,16 +646,9 @@ class Web3Service {
   // Trading Platform Functions
   async createBuyOrder(propertyTokenId, fractionalTokenAddress, shares, pricePerShare, expiresIn) {
     try {
-      console.log('🔍 [DEBUG] Web3Service: Creating buy order...')
-      console.log('🔍 [DEBUG] Web3Service: Property token ID:', propertyTokenId)
-      console.log('🔍 [DEBUG] Web3Service: Fractional token address:', fractionalTokenAddress)
-      console.log('🔍 [DEBUG] Web3Service: Shares:', shares)
-      console.log('🔍 [DEBUG] Web3Service: Price per share:', pricePerShare)
-      console.log('🔍 [DEBUG] Web3Service: Expires in:', expiresIn)
-      
+
       const totalCost = BigInt(shares) * pricePerShare
-      console.log('🔍 [DEBUG] Web3Service: Total cost:', totalCost)
-      
+
       const tx = await this.contracts.tradingPlatform.createBuyOrder(
         propertyTokenId,
         fractionalTokenAddress,
@@ -693,11 +657,9 @@ class Web3Service {
         expiresIn,
         { value: totalCost }
       )
-      
-      console.log('🔍 [DEBUG] Web3Service: Buy order transaction:', tx.hash)
+
       const receipt = await tx.wait()
-      console.log('🔍 [DEBUG] Web3Service: Buy order receipt:', receipt)
-      
+
       return receipt
     } catch (error) {
       console.error('❌ [ERROR] Web3Service: Error creating buy order:', error)
@@ -707,13 +669,52 @@ class Web3Service {
 
   async createSellOrder(propertyTokenId, fractionalTokenAddress, shares, pricePerShare, expiresIn) {
     try {
-      console.log('🔍 [DEBUG] Web3Service: Creating sell order...')
-      console.log('🔍 [DEBUG] Web3Service: Property token ID:', propertyTokenId)
-      console.log('🔍 [DEBUG] Web3Service: Fractional token address:', fractionalTokenAddress)
-      console.log('🔍 [DEBUG] Web3Service: Shares:', shares)
-      console.log('🔍 [DEBUG] Web3Service: Price per share:', pricePerShare)
-      console.log('🔍 [DEBUG] Web3Service: Expires in:', expiresIn)
+      console.log('🔄 Creating sell order for property:', propertyTokenId)
+      console.log('📊 Shares to sell:', shares)
+      console.log('💰 Price per share:', ethers.formatEther(pricePerShare))
+
+      // First, we need to approve the TradingPlatform contract to transfer our fractional tokens
+      const FRACTIONAL_TOKEN_ABI = [
+        "function balanceOf(address account) external view returns (uint256)",
+        "function approve(address spender, uint256 amount) external returns (bool)",
+        "function allowance(address owner, address spender) external view returns (uint256)"
+      ]
       
+      const fractionalTokenContract = new ethers.Contract(fractionalTokenAddress, FRACTIONAL_TOKEN_ABI, this.signer)
+      
+      // Check user's balance first
+      const userBalance = await fractionalTokenContract.balanceOf(await this.signer.getAddress())
+      const sharesInWei = BigInt(shares) * BigInt(10**18)
+      
+      console.log('👤 User balance:', ethers.formatEther(userBalance), 'shares')
+      console.log('📝 Required shares:', ethers.formatEther(sharesInWei), 'shares')
+      
+      if (userBalance < sharesInWei) {
+        throw new Error(`Insufficient shares. You have ${ethers.formatEther(userBalance)} shares but need ${ethers.formatEther(sharesInWei)} shares`)
+      }
+
+      // Check current allowance
+      const currentAllowance = await fractionalTokenContract.allowance(
+        await this.signer.getAddress(),
+        this.contracts.tradingPlatform.target
+      )
+      
+      console.log('🔍 Current allowance:', ethers.formatEther(currentAllowance))
+      
+      // If allowance is insufficient, approve the trading platform
+      if (currentAllowance < sharesInWei) {
+        console.log('🔓 Approving TradingPlatform to spend fractional tokens...')
+        const approveTx = await fractionalTokenContract.approve(
+          this.contracts.tradingPlatform.target,
+          sharesInWei
+        )
+        console.log('⏳ Waiting for approval transaction...')
+        await approveTx.wait()
+        console.log('✅ Approval transaction confirmed')
+      }
+
+      // Now create the sell order
+      console.log('📝 Creating sell order on TradingPlatform...')
       const tx = await this.contracts.tradingPlatform.createSellOrder(
         propertyTokenId,
         fractionalTokenAddress,
@@ -721,11 +722,11 @@ class Web3Service {
         pricePerShare,
         expiresIn
       )
-      
-      console.log('🔍 [DEBUG] Web3Service: Sell order transaction:', tx.hash)
+
+      console.log('⏳ Waiting for sell order transaction...')
       const receipt = await tx.wait()
-      console.log('🔍 [DEBUG] Web3Service: Sell order receipt:', receipt)
-      
+      console.log('✅ Sell order created successfully!')
+
       return receipt
     } catch (error) {
       console.error('❌ [ERROR] Web3Service: Error creating sell order:', error)
@@ -735,13 +736,69 @@ class Web3Service {
 
   async fillBuyOrder(orderId) {
     try {
-      console.log('🔍 [DEBUG] Web3Service: Filling buy order:', orderId)
+      console.log('🔄 Filling buy order:', orderId)
+
+      // Get order details first
+      const order = await this.contracts.tradingPlatform.getOrder(orderId)
+      console.log('📋 Order details:', {
+        shares: order.shares.toString(),
+        fractionalTokenAddress: order.fractionalTokenAddress,
+        isBuyOrder: order.isBuyOrder
+      })
+
+      // Verify this is a buy order
+      if (!order.isBuyOrder) {
+        throw new Error('This is not a buy order')
+      }
+
+      // We need to approve the TradingPlatform to transfer our fractional tokens
+      const FRACTIONAL_TOKEN_ABI = [
+        "function balanceOf(address account) external view returns (uint256)",
+        "function approve(address spender, uint256 amount) external returns (bool)",
+        "function allowance(address owner, address spender) external view returns (uint256)"
+      ]
       
+      const fractionalTokenContract = new ethers.Contract(order.fractionalTokenAddress, FRACTIONAL_TOKEN_ABI, this.signer)
+      
+      // Check user's balance
+      const userBalance = await fractionalTokenContract.balanceOf(await this.signer.getAddress())
+      const sharesInWei = BigInt(order.shares) * BigInt(10**18)
+      
+      console.log('👤 User balance:', ethers.formatEther(userBalance), 'shares')
+      console.log('📝 Required shares:', ethers.formatEther(sharesInWei), 'shares')
+      
+      if (userBalance < sharesInWei) {
+        throw new Error(`Insufficient shares. You have ${ethers.formatEther(userBalance)} shares but need ${ethers.formatEther(sharesInWei)} shares`)
+      }
+
+      // Check current allowance
+      const currentAllowance = await fractionalTokenContract.allowance(
+        await this.signer.getAddress(),
+        this.contracts.tradingPlatform.target
+      )
+      
+      console.log('🔍 Current allowance:', ethers.formatEther(currentAllowance))
+      
+      // If allowance is insufficient, approve the trading platform
+      if (currentAllowance < sharesInWei) {
+        console.log('🔓 Approving TradingPlatform to spend fractional tokens...')
+        const approveTx = await fractionalTokenContract.approve(
+          this.contracts.tradingPlatform.target,
+          sharesInWei
+        )
+        console.log('⏳ Waiting for approval transaction...')
+        await approveTx.wait()
+        console.log('✅ Approval transaction confirmed')
+      }
+
+      // Now fill the buy order
+      console.log('📝 Filling buy order...')
       const tx = await this.contracts.tradingPlatform.fillBuyOrder(orderId)
-      console.log('🔍 [DEBUG] Web3Service: Fill buy order transaction:', tx.hash)
+
+      console.log('⏳ Waiting for fill transaction...')
       const receipt = await tx.wait()
-      console.log('🔍 [DEBUG] Web3Service: Fill buy order receipt:', receipt)
-      
+      console.log('✅ Buy order filled successfully!')
+
       return receipt
     } catch (error) {
       console.error('❌ [ERROR] Web3Service: Error filling buy order:', error)
@@ -751,14 +808,11 @@ class Web3Service {
 
   async fillSellOrder(orderId, value) {
     try {
-      console.log('🔍 [DEBUG] Web3Service: Filling sell order:', orderId)
-      console.log('🔍 [DEBUG] Web3Service: Value:', value)
-      
+
       const tx = await this.contracts.tradingPlatform.fillSellOrder(orderId, { value })
-      console.log('🔍 [DEBUG] Web3Service: Fill sell order transaction:', tx.hash)
+
       const receipt = await tx.wait()
-      console.log('🔍 [DEBUG] Web3Service: Fill sell order receipt:', receipt)
-      
+
       return receipt
     } catch (error) {
       console.error('❌ [ERROR] Web3Service: Error filling sell order:', error)
@@ -768,13 +822,14 @@ class Web3Service {
 
   async cancelOrder(orderId) {
     try {
-      console.log('🔍 [DEBUG] Web3Service: Cancelling order:', orderId)
-      
+      console.log('🚫 Cancelling order:', orderId)
+
       const tx = await this.contracts.tradingPlatform.cancelOrder(orderId)
-      console.log('🔍 [DEBUG] Web3Service: Cancel order transaction:', tx.hash)
+      console.log('📝 Cancel transaction sent:', tx.hash)
+
       const receipt = await tx.wait()
-      console.log('🔍 [DEBUG] Web3Service: Cancel order receipt:', receipt)
-      
+      console.log('✅ Order cancelled successfully:', receipt.transactionHash)
+
       return receipt
     } catch (error) {
       console.error('❌ [ERROR] Web3Service: Error cancelling order:', error)

@@ -92,6 +92,51 @@ contract FractionalToken is ERC20, Ownable, ERC20Permit {
     }
     
     /**
+     * @dev Purchase fractional shares for another address (only callable by owner)
+     * @param buyer Address to receive the shares
+     * @param amount Number of shares to purchase
+     */
+    function purchaseSharesFor(address buyer, uint256 amount) external payable onlyOwner {
+        console.log("[DEBUG] FractionalToken: purchaseSharesFor called");
+        console.log("[DEBUG] FractionalToken: amount:", amount);
+        console.log("[DEBUG] FractionalToken: buyer:", buyer);
+        console.log("[DEBUG] FractionalToken: msg.sender:", msg.sender);
+        console.log("[DEBUG] FractionalToken: msg.value:", msg.value);
+        
+        require(tradingEnabled, "Trading is not enabled");
+        require(amount > 0, "Amount must be greater than 0");
+        require(amount <= totalShares, "Cannot purchase more than total shares");
+        
+        uint256 totalCost = amount * sharePrice;
+        console.log("[DEBUG] FractionalToken: totalCost:", totalCost);
+        require(msg.value >= totalCost, "Insufficient payment");
+        
+        uint256 tokensToTransfer = amount * 10**18;
+        uint256 contractBalance = balanceOf(address(this));
+        uint256 buyerBalanceBefore = balanceOf(buyer);
+        
+        console.log("[DEBUG] FractionalToken: tokensToTransfer:", tokensToTransfer);
+        console.log("[DEBUG] FractionalToken: contractBalance:", contractBalance);
+        console.log("[DEBUG] FractionalToken: buyerBalanceBefore:", buyerBalanceBefore);
+        
+        require(contractBalance >= tokensToTransfer, "Contract has insufficient tokens");
+        
+        // Transfer shares from contract to buyer
+        _transfer(address(this), buyer, tokensToTransfer);
+        
+        uint256 buyerBalanceAfter = balanceOf(buyer);
+        console.log("[DEBUG] FractionalToken: buyerBalanceAfter:", buyerBalanceAfter);
+        
+        // Refund excess payment to the msg.sender (who paid)
+        if (msg.value > totalCost) {
+            payable(msg.sender).transfer(msg.value - totalCost);
+        }
+        
+        emit SharesPurchased(buyer, amount, totalCost);
+        console.log("[DEBUG] FractionalToken: purchaseSharesFor completed successfully");
+    }
+    
+    /**
      * @dev Sell fractional shares back to the contract
      * @param amount Number of shares to sell
      */
