@@ -158,6 +158,7 @@ export const Web3Provider = ({ children }) => {
   }
 
   const connectWallet = async () => {
+    console.log('🚀 Starting wallet connection process...')
     // Get the current provider (either from state or create a new one)
     let currentProvider = provider
     
@@ -190,9 +191,11 @@ export const Web3Provider = ({ children }) => {
       
       // Handle MetaMask connection
       if (typeof window.ethereum !== 'undefined') {
+        console.log('🦊 MetaMask detected, requesting accounts...')
         accounts = await window.ethereum.request({
           method: 'eth_requestAccounts'
         })
+        console.log('🦊 MetaMask accounts received:', accounts)
       } else {
         // For local Hardhat node, use the first account
         const signer = await currentProvider.getSigner(0)
@@ -201,19 +204,26 @@ export const Web3Provider = ({ children }) => {
       }
 
       if (accounts.length > 0) {
+        console.log('🔗 Processing wallet connection with accounts:', accounts)
         const web3Signer = await currentProvider.getSigner()
         const address = await web3Signer.getAddress()
         const network = await currentProvider.getNetwork()
+
+        console.log('🔗 Wallet connection details:', { address, chainId: Number(network.chainId) })
 
         setSigner(web3Signer)
         setAccount(address)
         setChainId(Number(network.chainId))
         setIsConnected(true)
 
+        console.log('🔗 State updated - wallet should be connected now')
+
         // Initialize contracts
         await initializeContracts(web3Signer)
 
         toast.success(`Connected to ${address.slice(0, 6)}...${address.slice(-4)}`)
+      } else {
+        console.log('❌ No accounts found - wallet connection failed')
       }
     } catch (error) {
       console.error('Error connecting wallet:', error)

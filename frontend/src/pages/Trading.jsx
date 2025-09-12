@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { useWeb3 } from '../contexts/Web3Context'
 import { useAuth } from '../contexts/AuthContext'
 import apiService from '../services/ApiService'
+import TransactionService from '../services/TransactionService'
 import toast from 'react-hot-toast'
 import {
   ChartBarIcon,
@@ -162,17 +163,19 @@ const Trading = () => {
     try {
       console.log('🔄 Filling order:', orderId, 'isBuyOrder:', isBuyOrder)
       
+      const order = orders.find(o => o.id === orderId.toString())
+      if (!order) {
+        console.error('❌ Order not found. Available orders:', orders.map(o => ({ id: o.id, orderId: o.orderId })))
+        throw new Error(`Order with ID ${orderId} not found`)
+      }
+      
+      let transactionHash, receipt
+      
       if (isBuyOrder) {
-        await web3Service.fillBuyOrder(orderId)
+        const result = await web3Service.fillBuyOrder(orderId)
+        transactionHash = result?.hash
+        receipt = result
       } else {
-        // For sell orders, we need to send ETH to buy the shares
-        const order = orders.find(o => o.id === orderId.toString())
-        
-        if (!order) {
-          console.error('❌ Order not found. Available orders:', orders.map(o => ({ id: o.id, orderId: o.orderId })))
-          throw new Error(`Order with ID ${orderId} not found`)
-        }
-        
         console.log('📋 Found order:', order)
         
         // Safely convert to BigInt
@@ -182,7 +185,53 @@ const Trading = () => {
         
         console.log('💰 Total cost:', totalCost.toString(), 'wei')
         
-        await web3Service.fillSellOrder(orderId, totalCost)
+        const result = await web3Service.fillSellOrder(orderId, totalCost)
+        transactionHash = result?.hash
+        receipt = result
+      }
+      
+      // Track the transaction
+      try {
+        const shares = parseFloat(order.shares)
+        const pricePerShare = parseFloat(formatEther(order.pricePerShare))
+        const amount = shares * pricePerShare
+        
+        // Find the property in the database by tokenId to get the MongoDB _id
+        const property = properties.find(p => p.tokenId === order.propertyTokenId)
+        
+        if (property) {
+          if (isBuyOrder) {
+            // User is selling shares to fill a buy order
+            await TransactionService.trackSellTransaction({
+              propertyId: property._id,
+              shares: shares,
+              pricePerShare: pricePerShare,
+              totalAmount: amount,
+              transactionHash: transactionHash,
+              blockNumber: receipt?.blockNumber,
+              gasUsed: receipt?.gasUsed?.toString(),
+              gasFee: (receipt?.gasUsed * receipt?.gasPrice)?.toString(),
+              fromAddress: account,
+              toAddress: order.seller
+            })
+          } else {
+            // User is buying shares by filling a sell order
+            await TransactionService.trackBuyTransaction({
+              propertyId: property._id,
+              shares: shares,
+              pricePerShare: pricePerShare,
+              totalAmount: amount,
+              transactionHash: transactionHash,
+              blockNumber: receipt?.blockNumber,
+              gasUsed: receipt?.gasUsed?.toString(),
+              gasFee: (receipt?.gasUsed * receipt?.gasPrice)?.toString(),
+              fromAddress: account,
+              toAddress: order.seller
+            })
+          }
+        }
+      } catch (trackingError) {
+        console.warn('Failed to track transaction:', trackingError)
       }
       
       toast.success('Order filled successfully!')
@@ -197,7 +246,11 @@ const Trading = () => {
       if (error.message.includes('Cannot buy your own order')) {
         errorMessage = 'You cannot fill your own order. Use "Cancel Order" instead.'
       } else if (error.message.includes('Insufficient shares')) {
-        errorMessage = 'You don\'t have enough shares to fill this buy order.'
+        if (isBuyOrder) {
+          errorMessage = 'You don\'t have enough shares to sell to this buy order.'
+        } else {
+          errorMessage = 'You don\'t have enough ETH to buy these shares.'
+        }
       } else if (error.message.includes('Insufficient payment')) {
         errorMessage = 'You don\'t have enough ETH to buy these shares.'
       } else if (error.message.includes('Order has expired')) {
@@ -287,8 +340,9 @@ const Trading = () => {
       const priceInWei = parseEther(pricePerShare)
       const expiresInSeconds = expiresIn * 24 * 60 * 60 // Convert days to seconds
 
+      let result
       if (orderType === 'buy') {
-        await web3Service.createBuyOrder(
+        result = await web3Service.createBuyOrder(
           property.tokenId,
           property.fractionalTokenAddress,
           shares,
@@ -296,13 +350,32 @@ const Trading = () => {
           expiresInSeconds
         )
       } else {
-        await web3Service.createSellOrder(
+        result = await web3Service.createSellOrder(
           property.tokenId,
           property.fractionalTokenAddress,
           shares,
           priceInWei,
           expiresInSeconds
         )
+      }
+
+      // Track the order creation as a pending transaction
+      try {
+        await TransactionService.trackPendingTransaction({
+          propertyId: property._id,
+          type: orderType.toUpperCase(),
+          shares: shares,
+          pricePerShare: parseFloat(pricePerShare),
+          totalAmount: shares * parseFloat(pricePerShare),
+          transactionHash: result?.hash || 'pending',
+          blockNumber: result?.blockNumber,
+          gasUsed: result?.gasUsed?.toString(),
+          gasFee: (result?.gasUsed * result?.gasPrice)?.toString(),
+          fromAddress: account,
+          toAddress: property.fractionalTokenAddress
+        })
+      } catch (trackingError) {
+        console.warn('Failed to track order creation:', trackingError)
       }
 
       toast.success(`${orderType === 'buy' ? 'Buy' : 'Sell'} order created successfully!`)
@@ -317,7 +390,28 @@ const Trading = () => {
       
     } catch (error) {
       console.error('Error creating order:', error)
-      toast.error('Failed to create order')
+      
+      let errorMessage = `Failed to create ${orderType} order`
+      
+      if (error.message.includes('Insufficient shares')) {
+        if (orderType === 'sell') {
+          errorMessage = `You don't have enough shares to create this sell order. Check your portfolio for available shares.`
+        } else {
+          errorMessage = `Insufficient shares to fill this order.`
+        }
+      } else if (error.message.includes('Insufficient payment')) {
+        errorMessage = 'You don\'t have enough ETH to create this buy order.'
+      } else if (error.message.includes('rejected by the user')) {
+        errorMessage = 'Transaction was cancelled by user.'
+      } else if (error.message.includes('Property not found')) {
+        errorMessage = 'Property not found or not available for trading.'
+      } else if (error.message.includes('User rejected')) {
+        errorMessage = 'Transaction was cancelled by user.'
+      } else if (error.message) {
+        errorMessage = error.message
+      }
+      
+      toast.error(errorMessage)
     } finally {
       setCreatingOrder(false)
     }

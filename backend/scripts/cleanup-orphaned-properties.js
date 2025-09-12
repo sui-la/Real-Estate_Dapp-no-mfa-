@@ -7,7 +7,7 @@ async function cleanupOrphanedProperties() {
     console.log('🧹 Starting cleanup of orphaned properties...');
     
     // Connect to MongoDB
-    await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/real_estate_dapp');
+    await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/real-estate-dapp');
     console.log('✅ Connected to MongoDB');
     
     // Find all properties in database

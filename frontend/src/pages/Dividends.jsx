@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { useWeb3 } from '../contexts/Web3Context'
 import { useAuth } from '../contexts/AuthContext'
 import ApiService from '../services/ApiService'
+import TransactionService from '../services/TransactionService'
 import toast from 'react-hot-toast'
 import { ethers } from 'ethers'
 import {
@@ -117,6 +118,8 @@ const Dividends = () => {
             if (dividend.isActive && claimableAmount > 0n) {
               // Find matching property details from API
               let propertyDetails = null
+              let databaseDividend = null
+              
               try {
                 if (Array.isArray(propertiesList)) {
                   propertyDetails = propertiesList.find(p => p.tokenId === i)
@@ -128,6 +131,19 @@ const Dividends = () => {
                 console.error(`❌ Error finding property details for token ${i}:`, error)
               }
               
+              // Try to fetch corresponding database dividend for additional info
+              try {
+                const response = await fetch(`${import.meta.env.VITE_API_URL}/dividends?propertyId=${propertyDetails?._id}&isActive=true`)
+                if (response.ok) {
+                  const data = await response.json()
+                  // Find dividend with matching dividendId
+                  databaseDividend = data.dividends?.find(d => d.dividendId === Number(dividendId))
+                  console.log(`📊 Database dividend info for ${dividendId}:`, databaseDividend)
+                }
+              } catch (error) {
+                console.warn(`⚠️ Could not fetch database dividend info:`, error)
+              }
+              
               console.log(`✅ Adding dividend ${dividendId} to display list`)
               
               allDividends.push({
@@ -135,9 +151,15 @@ const Dividends = () => {
                 propertyTokenId: i,
                 propertyName: propertyDetails?.name || `Property #${i}`,
                 propertyLocation: propertyDetails?.location || 'Unknown Location',
-                propertyImage: propertyDetails?.imageUrl || 'https://via.placeholder.com/60x60?text=Property',
+                propertyImage: propertyDetails?.imageUrl || '/vite.svg',
                 claimableAmount: formatEther(claimableAmount),
                 ...dividend,
+                // Merge database dividend info if available
+                ...(databaseDividend && {
+                  distributionDate: databaseDividend.distributionDate,
+                  description: databaseDividend.description,
+                  source: databaseDividend.source
+                }),
                 totalAmountFormatted: formatEther(dividend.totalAmount),
                 distributedAmountFormatted: formatEther(dividend.distributedAmount),
               })
@@ -166,154 +188,244 @@ const Dividends = () => {
 
   const claimDividend = async (dividendId) => {
     try {
-      console.log('Claiming dividend with ID:', dividendId, typeof dividendId)
-      
-      // Ensure dividend ID is properly converted to BigInt for the contract call
       const dividendIdBigInt = BigInt(dividendId.toString())
-      console.log('Converted dividend ID:', dividendIdBigInt)
       
-      // Check if user has claimable amount for this dividend
+      // Get dividend information
+      const dividend = await contracts.dividendDistributor.getDividend(dividendIdBigInt)
+      
+      // Check if user has shares in the fractional token for this dividend
+      const fractionalTokenContract = new ethers.Contract(
+        dividend.fractionalTokenAddress,
+        [
+          'function balanceOf(address) view returns (uint256)',
+          'function totalSupply() view returns (uint256)',
+          'function name() view returns (string)',
+          'function symbol() view returns (string)'
+        ],
+        contracts.signer
+      )
+      
+      const userShares = await fractionalTokenContract.balanceOf(contracts.signer.address)
+      const tokenName = await fractionalTokenContract.name()
       const claimableAmount = await contracts.dividendDistributor.getClaimableDividend(contracts.signer.address, dividendIdBigInt)
-      console.log('Claimable amount:', formatEther(claimableAmount), 'ETH')
       
       if (claimableAmount === 0n) {
         toast.error('No dividends to claim for this property. You may not own shares or have already claimed.')
         return
       }
       
-      const tx = await contracts.realEstateFractionalization.claimDividend(dividendIdBigInt)
-      await tx.wait()
+      if (userShares === 0n) {
+        toast.error(`You don't own shares in ${tokenName}. The dividend is for this token but you have 0 shares.`)
+        return
+      }
       
-      toast.success(`Dividend claimed successfully! Received ${formatEther(claimableAmount)} ETH`)
-      await loadDividends() // Reload dividends
+      // Try calling DividendDistributor directly first
+      try {
+        const signerAddress = await contracts.signer.getAddress()
+        const directTx = await contracts.dividendDistributor.claimDividend(dividendIdBigInt)
+        const receipt = await directTx.wait()
+        
+        // Track the dividend claim transaction
+        try {
+          console.log('🔍 [DEBUG] Starting transaction tracking...')
+          const dividendData = dividends.find(d => d.id === dividendId.toString())
+          console.log('🔍 [DEBUG] Dividend data:', dividendData)
+          
+          // Find the property in the database by tokenId to get the MongoDB _id
+          console.log('🔍 [DEBUG] Looking up property with tokenId:', dividendData?.propertyTokenId)
+          const property = await ApiService.getProperties({ tokenId: dividendData?.propertyTokenId })
+          console.log('🔍 [DEBUG] Property lookup result:', property)
+          const propertyRecord = property?.properties?.[0]
+          console.log('🔍 [DEBUG] Property record:', propertyRecord)
+          
+          if (propertyRecord) {
+            console.log('🔍 [DEBUG] Tracking dividend transaction with propertyId:', propertyRecord._id)
+            await TransactionService.trackDividendTransaction({
+              propertyId: propertyRecord._id,
+              amount: parseFloat(formatEther(claimableAmount)),
+              transactionHash: receipt.hash,
+              blockNumber: receipt.blockNumber,
+              gasUsed: receipt.gasUsed?.toString(),
+              gasFee: (receipt.gasUsed * receipt.gasPrice)?.toString(),
+              fromAddress: signerAddress,
+              toAddress: contracts.dividendDistributor.target,
+              distributionId: dividendId.toString()
+            })
+            console.log('✅ [DEBUG] Transaction tracking completed successfully')
+          } else {
+            console.warn('❌ [DEBUG] No property record found for tokenId:', dividendData?.propertyTokenId)
+          }
+        } catch (trackingError) {
+          console.error('❌ [DEBUG] Failed to track dividend transaction:', trackingError)
+        }
+        
+        toast.success(`Dividend claimed successfully! Received ${formatEther(claimableAmount)} ETH`)
+        await loadDividends()
+        return
+        
+      } catch (directError) {
+        // Fallback to RealEstateFractionalization call
+        const tx = await contracts.realEstateFractionalization.claimDividend(dividendIdBigInt)
+        const receipt = await tx.wait()
+        
+        // Track the dividend claim transaction
+        try {
+          const signerAddress = await contracts.signer.getAddress()
+          const dividendData = dividends.find(d => d.id === dividendId.toString())
+          // Find the property in the database by tokenId to get the MongoDB _id
+          const property = await ApiService.getProperties({ tokenId: dividendData?.propertyTokenId })
+          const propertyRecord = property?.properties?.[0]
+          
+          if (propertyRecord) {
+            await TransactionService.trackDividendTransaction({
+              propertyId: propertyRecord._id,
+              amount: parseFloat(formatEther(claimableAmount)),
+              transactionHash: receipt.hash,
+              blockNumber: receipt.blockNumber,
+              gasUsed: receipt.gasUsed?.toString(),
+              gasFee: (receipt.gasUsed * receipt.gasPrice)?.toString(),
+              fromAddress: signerAddress,
+              toAddress: contracts.realEstateFractionalization.target,
+              distributionId: dividendId.toString()
+            })
+          }
+        } catch (trackingError) {
+          console.warn('Failed to track dividend transaction:', trackingError)
+        }
+        
+        toast.success(`Dividend claimed successfully! Received ${formatEther(claimableAmount)} ETH`)
+        await loadDividends()
+      }
       
     } catch (error) {
       console.error('Error claiming dividend:', error)
-      console.error('Error details:', {
-        message: error.message,
-        code: error.code,
-        data: error.data
-      })
       
-      // More specific error messages
-      if (error.message.includes('No shares to claim dividends for')) {
-        toast.error('You don\'t own shares in this property')
-      } else if (error.message.includes('Already claimed this dividend')) {
-        toast.error('You have already claimed this dividend')
-      } else if (error.message.includes('Dividend is not active')) {
-        toast.error('This dividend is no longer active')
+      if (error.message?.includes('No shares to claim dividends for')) {
+        toast.error('You don\'t own shares in this property or have already claimed this dividend.')
+      } else if (error.message?.includes('Already claimed this dividend')) {
+        toast.error('You have already claimed this dividend.')
+      } else if (error.message?.includes('Dividend is not active')) {
+        toast.error('This dividend is no longer active.')
+      } else if (error.message?.includes('No dividends to claim')) {
+        toast.error('No dividends available to claim.')
       } else {
-        toast.error('Failed to claim dividend: ' + (error.reason || error.message))
+        toast.error(`Failed to claim dividend: ${error.message}`)
       }
     }
   }
 
   const claimAllDividends = async () => {
     try {
-      const dividendIds = dividends.map(d => BigInt(d.id.toString()))
-      console.log('💰 Claiming all dividends with IDs:', dividendIds)
-      
-      if (dividendIds.length === 0) {
+      if (dividends.length === 0) {
         toast.error('No dividends to claim')
         return
       }
 
-      // Check total claimable amount first
-      const totalClaimableAmount = await contracts.realEstateFractionalization.getTotalClaimableDividends(contracts.signer.address)
-      console.log('💵 Total claimable amount:', formatEther(totalClaimableAmount), 'ETH')
-      
-      if (totalClaimableAmount === 0n) {
-        toast.error('No dividends available to claim. You may not own shares or have already claimed all dividends.')
-        return
-      }
+      let totalClaimed = 0n
+      let successCount = 0
+      let errorCount = 0
 
-      // Debug each dividend individually before batch claim
-      console.log('🔍 Debugging individual dividends before batch claim:')
-      for (const dividendId of dividendIds) {
+      // Claim each dividend individually using the same logic as individual claim
+      for (const dividend of dividends) {
         try {
-          const dividend = await contracts.dividendDistributor.getDividend(dividendId)
-          const claimableAmount = await contracts.dividendDistributor.getClaimableDividend(contracts.signer.address, dividendId)
-          const hasClaimed = await contracts.dividendDistributor.hasClaimedDividend(contracts.signer.address, dividendId)
+          const dividendIdBigInt = BigInt(dividend.id.toString())
           
-          // Check fractional token details
-          const fractionalTokenAddress = dividend.fractionalTokenAddress
-          console.log(`🪙 Fractional token address for dividend ${dividendId}:`, fractionalTokenAddress)
+          // Get claimable amount for this dividend
+          const claimableAmount = await contracts.dividendDistributor.getClaimableDividend(contracts.signer.address, dividendIdBigInt)
           
-          // Get fractional token contract and check user balance
-          const fractionalTokenAbi = [
-            "function balanceOf(address owner) view returns (uint256)",
-            "function totalSupply() view returns (uint256)"
-          ]
-          const fractionalToken = new ethers.Contract(fractionalTokenAddress, fractionalTokenAbi, contracts.signer)
-          const userShares = await fractionalToken.balanceOf(contracts.signer.address)
-          const totalShares = await fractionalToken.totalSupply()
-          
-          console.log(`📊 Dividend ${dividendId}:`, {
-            isActive: dividend.isActive,
-            claimableAmount: formatEther(claimableAmount),
-            hasClaimed: hasClaimed,
-            totalAmount: formatEther(dividend.totalAmount),
-            fractionalTokenAddress,
-            userShares: formatEther(userShares),
-            totalShares: formatEther(totalShares),
-            userSharesRaw: userShares.toString(),
-            calculatedDividend: userShares > 0n ? formatEther((userShares * dividend.totalAmount) / totalShares) : '0'
-          })
-        } catch (debugError) {
-          console.error(`❌ Error debugging dividend ${dividendId}:`, debugError)
-        }
-      }
-
-      // DEBUG: Let's check which fractional token addresses you actually own shares in
-      console.log('🔍 Checking your actual fractional token ownership...')
-      for (const property of properties) {
-        if (property.tokenId && property.fractionalTokenAddress) {
-          try {
-            const fractionalTokenAbi = [
-              "function balanceOf(address owner) view returns (uint256)"
-            ]
-            const fractionalToken = new ethers.Contract(property.fractionalTokenAddress, fractionalTokenAbi, contracts.signer)
-            const userShares = await fractionalToken.balanceOf(contracts.signer.address)
-            
-            if (userShares > 0n) {
-              console.log(`✅ You own ${formatEther(userShares)} shares in:`, {
-                property: property.name,
-                tokenId: property.tokenId,
-                fractionalTokenAddress: property.fractionalTokenAddress
-              })
-            }
-          } catch (error) {
-            console.warn(`⚠️ Could not check shares for ${property.name}:`, error.message)
+          if (claimableAmount === 0n) {
+            continue // Skip dividends with 0 claimable amount
           }
+
+          // Try calling DividendDistributor directly first
+          try {
+            const signerAddress = await contracts.signer.getAddress()
+            const directTx = await contracts.dividendDistributor.claimDividend(dividendIdBigInt)
+            const receipt = await directTx.wait()
+            
+            // Track the dividend claim transaction
+            try {
+              // Find the property in the database by tokenId to get the MongoDB _id
+              const property = await ApiService.getProperties({ tokenId: dividend.propertyTokenId })
+              const propertyRecord = property?.properties?.[0]
+              
+              if (propertyRecord) {
+                await TransactionService.trackDividendTransaction({
+                  propertyId: propertyRecord._id,
+                  amount: parseFloat(formatEther(claimableAmount)),
+                  transactionHash: receipt.hash,
+                  blockNumber: receipt.blockNumber,
+                  gasUsed: receipt.gasUsed?.toString(),
+                  gasFee: (receipt.gasUsed * receipt.gasPrice)?.toString(),
+                  fromAddress: signerAddress,
+                  toAddress: contracts.dividendDistributor.target,
+                  distributionId: dividend.id
+                })
+              }
+            } catch (trackingError) {
+              console.warn('Failed to track dividend transaction:', trackingError)
+            }
+            
+            totalClaimed += claimableAmount
+            successCount++
+            
+          } catch (directError) {
+            // Fallback to RealEstateFractionalization call
+            const signerAddress = await contracts.signer.getAddress()
+            const tx = await contracts.realEstateFractionalization.claimDividend(dividendIdBigInt)
+            const receipt = await tx.wait()
+            
+            // Track the dividend claim transaction
+            try {
+              // Find the property in the database by tokenId to get the MongoDB _id
+              const property = await ApiService.getProperties({ tokenId: dividend.propertyTokenId })
+              const propertyRecord = property?.properties?.[0]
+              
+              if (propertyRecord) {
+                await TransactionService.trackDividendTransaction({
+                  propertyId: propertyRecord._id,
+                  amount: parseFloat(formatEther(claimableAmount)),
+                  transactionHash: receipt.hash,
+                  blockNumber: receipt.blockNumber,
+                  gasUsed: receipt.gasUsed?.toString(),
+                  gasFee: (receipt.gasUsed * receipt.gasPrice)?.toString(),
+                  fromAddress: signerAddress,
+                  toAddress: contracts.realEstateFractionalization.target,
+                  distributionId: dividend.id
+                })
+              }
+            } catch (trackingError) {
+              console.warn('Failed to track dividend transaction:', trackingError)
+            }
+            
+            totalClaimed += claimableAmount
+            successCount++
+          }
+          
+        } catch (error) {
+          console.error(`Error claiming dividend ${dividend.id}:`, error)
+          errorCount++
+          // Continue with next dividend instead of stopping
         }
       }
 
-      console.log('🚀 Attempting batch claim...')
-      const tx = await contracts.realEstateFractionalization.batchClaimDividends(dividendIds)
-      await tx.wait()
+      if (successCount > 0) {
+        toast.success(`Successfully claimed ${successCount} dividend(s)! Received ${formatEther(totalClaimed)} ETH`)
+      }
       
-      toast.success(`All dividends claimed successfully! Received ${formatEther(totalClaimableAmount)} ETH`)
-      await loadDividends() // Reload dividends
+      if (errorCount > 0) {
+        toast.warning(`${errorCount} dividend(s) could not be claimed (already claimed or no shares)`)
+      }
+
+      if (successCount === 0 && errorCount === 0) {
+        toast.error('No dividends available to claim')
+      }
+
+      await loadDividends()
       
     } catch (error) {
-      console.error('❌ Error claiming all dividends:', error)
-      console.error('🔍 Error details:', {
-        message: error.message,
-        code: error.code,
-        data: error.data,
-        reason: error.reason
-      })
-      
-      // More specific error messages
-      if (error.message.includes('No dividends to claim')) {
-        toast.error('No dividends to claim. You may have already claimed them or don\'t own shares.')
-      } else if (error.message.includes('No shares to claim dividends for')) {
-        toast.error('You don\'t own shares in any properties with dividends')
-      } else if (error.message.includes('Already claimed')) {
-        toast.error('You have already claimed these dividends')
-      } else {
-        toast.error('Failed to claim dividends: ' + (error.reason || error.message))
-      }
+      console.error('Error in claim all dividends:', error)
+      toast.error(`Failed to claim dividends: ${error.message}`)
     }
   }
 
@@ -343,6 +455,12 @@ const Dividends = () => {
         <p className="mt-2 text-lg text-gray-600">
           Manage your dividend payments from real estate investments
         </p>
+        <button
+          onClick={() => window.location.reload()}
+          className="mt-4 btn-secondary"
+        >
+          🔄 Force Refresh Data
+        </button>
       </div>
 
       {/* Summary */}
@@ -409,7 +527,7 @@ const Dividends = () => {
                     alt={dividend.propertyName}
                     className="w-16 h-16 rounded-lg object-cover"
                     onError={(e) => {
-                      e.target.src = 'https://via.placeholder.com/64x64?text=Property'
+                      e.target.src = '/vite.svg'
                     }}
                   />
                 </div>
@@ -486,21 +604,17 @@ const Dividends = () => {
                     <CalendarIcon className="h-4 w-4 mr-1" />
                     Distributed: {(() => {
                       try {
-                        // Convert BigInt to number if needed, then to milliseconds
-                        const timestamp = typeof dividend.timestamp === 'bigint' 
-                          ? Number(dividend.timestamp) 
-                          : Number(dividend.timestamp);
-                        
-                        if (isNaN(timestamp) || timestamp === 0) {
-                          return 'Date not available';
+                        if (dividend.distributionDate) {
+                          // Database date - already in correct format
+                          const date = new Date(dividend.distributionDate);
+                          return date.toLocaleDateString();
+                        } else {
+                          // Blockchain dividend without valid timestamp
+                          return 'Recently distributed';
                         }
-                        
-                        // Convert seconds to milliseconds for JavaScript Date
-                        const date = new Date(timestamp * 1000);
-                        return date.toLocaleDateString();
                       } catch (error) {
-                        console.warn('Error formatting dividend date:', error, 'timestamp:', dividend.timestamp);
-                        return 'Invalid Date';
+                        console.warn('Error formatting dividend date:', error, 'dividend:', dividend);
+                        return 'Recently distributed';
                       }
                     })()}
                   </div>

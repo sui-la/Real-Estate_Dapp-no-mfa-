@@ -1,69 +1,107 @@
 const express = require('express');
-const { body, validationResult } = require('express-validator');
-const Transaction = require('../models/Transaction');
-const { auth, adminAuth } = require('../middleware/auth');
-
+const mongoose = require('mongoose');
 const router = express.Router();
+const { auth } = require('../middleware/auth');
+const Transaction = require('../models/Transaction');
+const Property = require('../models/Property');
+const TransactionTracker = require('../utils/transactionTracker');
 
-// @route   GET /api/transactions
-// @desc    Get all transactions (with filters)
-// @access  Private
+// Get user's transaction history
 router.get('/', auth, async (req, res) => {
   try {
+    const userId = req.user.id;
     const { 
       page = 1, 
-      limit = 10, 
+      limit = 20, 
       type, 
       propertyId, 
-      status,
-      startDate,
-      endDate 
+      startDate, 
+      endDate,
+      sortBy = 'createdAt',
+      sortOrder = 'desc'
     } = req.query;
+
+    // Build filter object
+    const filter = { userId };
     
-    const query = {};
+    if (type) {
+      filter.type = type;
+    }
     
-    // Add filters
-    if (type) query.type = type;
-    if (propertyId) query.property = propertyId;
-    if (status) query.status = status;
+    if (propertyId) {
+      filter.propertyId = propertyId;
+    }
     
-    // Date range filter
     if (startDate || endDate) {
-      query.createdAt = {};
-      if (startDate) query.createdAt.$gte = new Date(startDate);
-      if (endDate) query.createdAt.$lte = new Date(endDate);
+      filter.createdAt = {};
+      if (startDate) {
+        filter.createdAt.$gte = new Date(startDate);
+      }
+      if (endDate) {
+        filter.createdAt.$lte = new Date(endDate);
+      }
     }
 
-    const transactions = await Transaction.find(query)
-      .populate('user', 'name walletAddress')
-      .populate('property', 'name tokenId')
-      .sort({ createdAt: -1 })
-      .limit(limit * 1)
-      .skip((page - 1) * limit);
+    // Calculate pagination
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const sortOptions = {};
+    sortOptions[sortBy] = sortOrder === 'desc' ? -1 : 1;
 
-    const total = await Transaction.countDocuments(query);
+    // Get transactions with property details
+    const transactions = await Transaction.find(filter)
+      .populate('propertyId', 'name tokenId imageUrl')
+      .sort(sortOptions)
+      .skip(skip)
+      .limit(parseInt(limit))
+      .lean();
+
+    // Get total count for pagination
+    const totalCount = await Transaction.countDocuments(filter);
+    const totalPages = Math.ceil(totalCount / parseInt(limit));
+
+    // Calculate summary statistics
+    const summary = await Transaction.aggregate([
+      { $match: filter },
+      {
+        $group: {
+          _id: '$type',
+          count: { $sum: 1 },
+          totalAmount: { $sum: '$amount' }
+        }
+      }
+    ]);
 
     res.json({
       transactions,
-      totalPages: Math.ceil(total / limit),
-      currentPage: page,
-      total
+      pagination: {
+        currentPage: parseInt(page),
+        totalPages,
+        totalCount,
+        hasNext: parseInt(page) < totalPages,
+        hasPrev: parseInt(page) > 1
+      },
+      summary: summary.reduce((acc, item) => {
+        acc[item._id] = {
+          count: item.count,
+          totalAmount: item.totalAmount
+        };
+        return acc;
+      }, {})
     });
 
   } catch (error) {
-    console.error('Get transactions error:', error);
-    res.status(500).json({ error: 'Server error' });
+    console.error('Transaction history error:', error);
+    res.status(500).json({ error: 'Failed to fetch transaction history' });
   }
 });
 
-// @route   GET /api/transactions/:id
-// @desc    Get transaction by ID
-// @access  Private
+// Get transaction by ID
 router.get('/:id', auth, async (req, res) => {
   try {
-    const transaction = await Transaction.findById(req.params.id)
-      .populate('user', 'name walletAddress')
-      .populate('property', 'name tokenId');
+    const transaction = await Transaction.findOne({
+      _id: req.params.id,
+      userId: req.user.id
+    }).populate('propertyId', 'name tokenId imageUrl');
 
     if (!transaction) {
       return res.status(404).json({ error: 'Transaction not found' });
@@ -71,132 +109,257 @@ router.get('/:id', auth, async (req, res) => {
 
     res.json(transaction);
   } catch (error) {
-    console.error('Get transaction error:', error);
-    res.status(500).json({ error: 'Server error' });
+    console.error('Transaction fetch error:', error);
+    res.status(500).json({ error: 'Failed to fetch transaction' });
   }
 });
 
-// @route   POST /api/transactions
-// @desc    Create a new transaction record
-// @access  Private
-router.post('/', [
-  auth,
-  body('propertyId').isMongoId(),
-  body('type').isIn(['buy', 'sell', 'dividend', 'transfer']),
-  body('amount').isNumeric(),
-  body('totalValue').isNumeric(),
-  body('transactionHash').isString(),
-  body('blockNumber').isNumeric(),
-  body('gasUsed').isNumeric(),
-  body('gasPrice').isNumeric()
-], async (req, res) => {
+// Get transaction statistics
+router.get('/stats/summary', auth, async (req, res) => {
   try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
+    const userId = req.user.id;
+    const { timeframe = '30d' } = req.query;
+
+    // Calculate date range
+    const now = new Date();
+    let startDate;
+    
+    switch (timeframe) {
+      case '7d':
+        startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        break;
+      case '30d':
+        startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        break;
+      case '90d':
+        startDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+        break;
+      case '1y':
+        startDate = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
+        break;
+      default:
+        startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     }
 
+    const stats = await Transaction.aggregate([
+      {
+        $match: {
+          userId: new mongoose.Types.ObjectId(userId),
+          createdAt: { $gte: startDate }
+        }
+      },
+      {
+        $group: {
+          _id: '$type',
+          count: { $sum: 1 },
+          totalAmount: { $sum: '$amount' },
+          totalShares: { $sum: '$shares' },
+          avgAmount: { $avg: '$amount' }
+        }
+      }
+    ]);
+
+    // Get portfolio value over time
+    const portfolioHistory = await Transaction.aggregate([
+      {
+        $match: {
+          userId: new mongoose.Types.ObjectId(userId),
+          type: { $in: ['BUY', 'SELL'] },
+          createdAt: { $gte: startDate }
+        }
+      },
+      {
+        $sort: { createdAt: 1 }
+      },
+      {
+        $group: {
+          _id: {
+            year: { $year: '$createdAt' },
+            month: { $month: '$createdAt' },
+            day: { $dayOfMonth: '$createdAt' }
+          },
+          totalInvested: {
+            $sum: {
+              $cond: [
+                { $eq: ['$type', 'BUY'] },
+                '$amount',
+                { $multiply: ['$amount', -1] }
+              ]
+            }
+          },
+          sharesTraded: { $sum: '$shares' }
+        }
+      },
+      {
+        $sort: { '_id.year': 1, '_id.month': 1, '_id.day': 1 }
+      }
+    ]);
+
+    res.json({
+      stats: stats.reduce((acc, item) => {
+        acc[item._id] = {
+          count: item.count,
+          totalAmount: item.totalAmount,
+          totalShares: item.totalShares || 0,
+          avgAmount: item.avgAmount
+        };
+        return acc;
+      }, {}),
+      portfolioHistory,
+      timeframe
+    });
+
+  } catch (error) {
+    console.error('Transaction stats error:', error);
+    res.status(500).json({ error: 'Failed to fetch transaction statistics' });
+  }
+});
+
+// Track buy transaction
+router.post('/track-buy', auth, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const {
+      propertyId,
+      shares,
+      pricePerShare,
+      totalAmount,
+      transactionHash,
+      blockNumber,
+      gasUsed,
+      gasFee,
+      fromAddress,
+      toAddress
+    } = req.body;
+
+    const transaction = await TransactionTracker.trackBuyTransaction({
+      userId,
+      propertyId,
+      shares,
+      pricePerShare,
+      totalAmount,
+      transactionHash,
+      blockNumber,
+      gasUsed,
+      gasFee,
+      fromAddress,
+      toAddress
+    });
+
+    res.json(transaction);
+  } catch (error) {
+    console.error('Track buy transaction error:', error);
+    res.status(500).json({ error: 'Failed to track buy transaction' });
+  }
+});
+
+// Track sell transaction
+router.post('/track-sell', auth, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const {
+      propertyId,
+      shares,
+      pricePerShare,
+      totalAmount,
+      transactionHash,
+      blockNumber,
+      gasUsed,
+      gasFee,
+      fromAddress,
+      toAddress
+    } = req.body;
+
+    const transaction = await TransactionTracker.trackSellTransaction({
+      userId,
+      propertyId,
+      shares,
+      pricePerShare,
+      totalAmount,
+      transactionHash,
+      blockNumber,
+      gasUsed,
+      gasFee,
+      fromAddress,
+      toAddress
+    });
+
+    res.json(transaction);
+  } catch (error) {
+    console.error('Track sell transaction error:', error);
+    res.status(500).json({ error: 'Failed to track sell transaction' });
+  }
+});
+
+// Track dividend transaction
+router.post('/track-dividend', auth, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const {
+      propertyId,
+      amount,
+      transactionHash,
+      blockNumber,
+      gasUsed,
+      gasFee,
+      distributionId,
+      type,
+      fromAddress,
+      toAddress
+    } = req.body;
+
+    const transaction = await TransactionTracker.trackDividendTransaction({
+      userId,
+      propertyId,
+      amount,
+      transactionHash,
+      blockNumber,
+      gasUsed,
+      gasFee,
+      distributionId,
+      type,
+      fromAddress,
+      toAddress
+    });
+
+    res.json(transaction);
+  } catch (error) {
+    console.error('Track dividend transaction error:', error);
+    res.status(500).json({ error: 'Failed to track dividend transaction' });
+  }
+});
+
+// Track pending transaction
+router.post('/track-pending', auth, async (req, res) => {
+  try {
+    const userId = req.user.id;
     const {
       propertyId,
       type,
       amount,
       shares,
       pricePerShare,
-      totalValue,
       transactionHash,
-      blockNumber,
-      gasUsed,
-      gasPrice,
-      metadata = {}
+      fromAddress,
+      toAddress
     } = req.body;
 
-    const transaction = new Transaction({
-      user: req.user.id,
-      property: propertyId,
+    const transaction = await TransactionTracker.trackPendingTransaction({
+      userId,
+      propertyId,
       type,
       amount,
       shares,
       pricePerShare,
-      totalValue,
       transactionHash,
-      blockNumber,
-      gasUsed,
-      gasPrice,
-      status: 'confirmed',
-      metadata
+      fromAddress,
+      toAddress
     });
-
-    await transaction.save();
-
-    res.status(201).json(transaction);
-  } catch (error) {
-    console.error('Create transaction error:', error);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
-// @route   PUT /api/transactions/:id/status
-// @desc    Update transaction status
-// @access  Private
-router.put('/:id/status', [
-  auth,
-  body('status').isIn(['pending', 'confirmed', 'failed'])
-], async (req, res) => {
-  try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
-    }
-
-    const transaction = await Transaction.findById(req.params.id);
-    if (!transaction) {
-      return res.status(404).json({ error: 'Transaction not found' });
-    }
-
-    transaction.status = req.body.status;
-    await transaction.save();
 
     res.json(transaction);
   } catch (error) {
-    console.error('Update transaction status error:', error);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
-// @route   GET /api/transactions/stats/summary
-// @desc    Get transaction statistics
-// @access  Private
-router.get('/stats/summary', auth, async (req, res) => {
-  try {
-    const userId = req.user.id;
-    
-    const stats = await Transaction.aggregate([
-      { $match: { user: userId } },
-      {
-        $group: {
-          _id: '$type',
-          count: { $sum: 1 },
-          totalValue: { $sum: '$totalValue' },
-          totalShares: { $sum: '$shares' }
-        }
-      }
-    ]);
-
-    const totalTransactions = await Transaction.countDocuments({ user: userId });
-    const totalValue = await Transaction.aggregate([
-      { $match: { user: userId } },
-      { $group: { _id: null, total: { $sum: '$totalValue' } } }
-    ]);
-
-    res.json({
-      totalTransactions,
-      totalValue: totalValue[0]?.total || 0,
-      byType: stats
-    });
-
-  } catch (error) {
-    console.error('Get transaction stats error:', error);
-    res.status(500).json({ error: 'Server error' });
+    console.error('Track pending transaction error:', error);
+    res.status(500).json({ error: 'Failed to track pending transaction' });
   }
 });
 

@@ -3,7 +3,9 @@ import { useParams, Link } from 'react-router-dom'
 import { useWeb3 } from '../contexts/Web3Context'
 import { useAuth } from '../contexts/AuthContext'
 import apiService from '../services/ApiService'
+import TransactionService from '../services/TransactionService'
 import toast from 'react-hot-toast'
+import Comments from '../components/Comments'
 import {
   BuildingOfficeIcon,
   MapPinIcon,
@@ -121,6 +123,25 @@ const PropertyDetail = () => {
 
       const receipt = await web3Service.purchaseShares(property.tokenId, sharesToBuy)
 
+      // Track the buy transaction
+      try {
+        const pricePerShare = property.totalValue / property.totalShares
+        await TransactionService.trackBuyTransaction({
+          propertyId: property._id,
+          shares: sharesToBuy,
+          pricePerShare: pricePerShare,
+          totalAmount: sharesToBuy * pricePerShare,
+          transactionHash: receipt?.hash,
+          blockNumber: receipt?.blockNumber,
+          gasUsed: receipt?.gasUsed?.toString(),
+          gasFee: (receipt?.gasUsed * receipt?.gasPrice)?.toString(),
+          fromAddress: receipt?.from,
+          toAddress: receipt?.to
+        })
+      } catch (trackingError) {
+        console.warn('Failed to track buy transaction:', trackingError)
+      }
+
       toast.success(`Successfully purchased ${sharesToBuy} shares!`)
       
       // Wait a moment for blockchain state to update
@@ -165,7 +186,27 @@ const PropertyDetail = () => {
     try {
       setIsSelling(true)
       
-      await web3Service.sellShares(property.tokenId, sharesToSell)
+      const receipt = await web3Service.sellShares(property.tokenId, sharesToSell)
+      
+      // Track the sell transaction
+      try {
+        const pricePerShare = property.totalValue / property.totalShares
+        await TransactionService.trackSellTransaction({
+          propertyId: property._id,
+          shares: sharesToSell,
+          pricePerShare: pricePerShare,
+          totalAmount: sharesToSell * pricePerShare,
+          transactionHash: receipt?.hash,
+          blockNumber: receipt?.blockNumber,
+          gasUsed: receipt?.gasUsed?.toString(),
+          gasFee: (receipt?.gasUsed * receipt?.gasPrice)?.toString(),
+          fromAddress: receipt?.from,
+          toAddress: receipt?.to
+        })
+      } catch (trackingError) {
+        console.warn('Failed to track sell transaction:', trackingError)
+      }
+      
       toast.success(`Successfully sold ${sharesToSell} shares!`)
       
       // Reload data
@@ -559,14 +600,13 @@ const PropertyDetail = () => {
                 <ShareIcon className="h-4 w-4 mr-2" />
                 Share Property
               </button>
-              <button className="w-full btn-secondary">
-                <ChartBarIcon className="h-4 w-4 mr-2" />
-                View Analytics
-              </button>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Comments Section */}
+      <Comments propertyId={property.tokenId} />
     </div>
   )
 }

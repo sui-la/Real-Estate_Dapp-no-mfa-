@@ -1,6 +1,7 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
 import { useWeb3 } from '../contexts/Web3Context'
+import { useAuth } from '../contexts/AuthContext'
 import {
   BuildingOfficeIcon,
   ChartBarIcon,
@@ -11,7 +12,8 @@ import {
 } from '@heroicons/react/24/outline'
 
 const Home = () => {
-  const { isConnected } = useWeb3()
+  const { isConnected, connectWallet } = useWeb3()
+  const { isAuthenticated } = useAuth()
 
   const features = [
     {
@@ -78,7 +80,7 @@ const Home = () => {
               on our decentralized platform built on Ethereum blockchain.
             </p>
             <div className="mt-10 flex items-center justify-center gap-x-6">
-              {isConnected ? (
+              {isAuthenticated ? (
                 <Link
                   to="/properties"
                   className="rounded-md bg-white px-6 py-3 text-sm font-semibold text-blue-600 shadow-sm hover:bg-blue-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
@@ -87,17 +89,14 @@ const Home = () => {
                   <ArrowRightIcon className="ml-2 h-4 w-4 inline" />
                 </Link>
               ) : (
-                <button className="rounded-md bg-white px-6 py-3 text-sm font-semibold text-blue-600 shadow-sm hover:bg-blue-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
+                <Link
+                  to="/register"
+                  className="rounded-md bg-white px-6 py-3 text-sm font-semibold text-blue-600 shadow-sm hover:bg-blue-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+                >
                   Get Started
                   <ArrowRightIcon className="ml-2 h-4 w-4 inline" />
-                </button>
+                </Link>
               )}
-              <Link
-                to="/properties"
-                className="text-sm font-semibold leading-6 text-white hover:text-blue-100"
-              >
-                Learn more <span aria-hidden="true">→</span>
-              </Link>
             </div>
           </div>
         </div>
@@ -241,7 +240,7 @@ const Home = () => {
               Join the future of real estate investment today. Start with as little as $100.
             </p>
             <div className="mt-8">
-              {isConnected ? (
+              {isAuthenticated ? (
                 <Link
                   to="/properties"
                   className="rounded-md bg-white px-8 py-3 text-lg font-semibold text-blue-600 shadow-sm hover:bg-blue-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
@@ -249,9 +248,12 @@ const Home = () => {
                   Browse Properties
                 </Link>
               ) : (
-                <button className="rounded-md bg-white px-8 py-3 text-lg font-semibold text-blue-600 shadow-sm hover:bg-blue-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
-                  Connect Wallet
-                </button>
+                <Link
+                  to="/register"
+                  className="rounded-md bg-white px-8 py-3 text-lg font-semibold text-blue-600 shadow-sm hover:bg-blue-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+                >
+                  Get Started
+                </Link>
               )}
             </div>
           </div>

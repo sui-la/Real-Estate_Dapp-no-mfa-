@@ -25,15 +25,13 @@ class ApiService {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
-        console.error('❌ [ERROR] API Error Response:', errorData)
         throw new Error(errorData.error || `HTTP ${response.status}`)
       }
 
       const data = await response.json()
-      console.log('✅ [SUCCESS] API Response Data:', data)
       return data
     } catch (error) {
-      console.error(`❌ [ERROR] API request failed for ${endpoint}:`, error)
+      console.error(`API request failed for ${endpoint}:`, error)
       throw error
     }
   }

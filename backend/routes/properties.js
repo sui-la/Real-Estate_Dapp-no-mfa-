@@ -11,7 +11,7 @@ const router = express.Router();
 // @access  Public
 router.get('/', async (req, res) => {
   try {
-    const { page = 1, limit = 10, search, sortBy = 'createdAt', sortOrder = 'desc' } = req.query;
+    const { page = 1, limit = 10, search, sortBy = 'createdAt', sortOrder = 'desc', tokenId } = req.query;
     
     const query = {};
     if (search) {
@@ -20,6 +20,11 @@ router.get('/', async (req, res) => {
         { location: { $regex: search, $options: 'i' } },
         { description: { $regex: search, $options: 'i' } }
       ];
+    }
+    
+    // Add tokenId filtering
+    if (tokenId) {
+      query.tokenId = parseInt(tokenId);
     }
 
     const sortOptions = {};

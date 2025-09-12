@@ -8,6 +8,7 @@ import {
   BriefcaseIcon,
   ChartBarIcon,
   CurrencyDollarIcon,
+  ClockIcon,
   UserIcon,
   CogIcon,
   Bars3Icon,
@@ -17,7 +18,7 @@ import {
 const Layout = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const { isConnected, connectWallet, disconnectWallet, formatAddress, account } = useWeb3()
-  const { isAuthenticated, user } = useAuth()
+  const { isAuthenticated, isWalletConnected, user, logout, canTrade } = useAuth()
   const location = useLocation()
 
   const navigation = [
@@ -26,6 +27,7 @@ const Layout = ({ children }) => {
     { name: 'Portfolio', href: '/portfolio', icon: BriefcaseIcon },
     { name: 'Trading', href: '/trading', icon: ChartBarIcon },
     { name: 'Dividends', href: '/dividends', icon: CurrencyDollarIcon },
+    { name: 'Transactions', href: '/transactions', icon: ClockIcon },
     { name: 'Profile', href: '/profile', icon: UserIcon },
     ...(user?.isAdmin ? [{ name: 'Admin', href: '/admin', icon: CogIcon }] : []),
   ]
@@ -112,28 +114,56 @@ const Layout = ({ children }) => {
           </button>
 
           <div className="flex items-center space-x-4">
-            {isConnected ? (
+            {/* Wallet Status */}
+            {isWalletConnected && account && (
+              <div className="flex items-center space-x-2">
+                <div className="h-2 w-2 bg-green-400 rounded-full"></div>
+                <span className="text-xs font-medium text-gray-600">
+                  {formatAddress(account)}
+                </span>
+              </div>
+            )}
+
+            {/* Authentication Status */}
+            {isAuthenticated ? (
               <div className="flex items-center space-x-3">
-                <div className="flex items-center space-x-2">
-                  <div className="h-2 w-2 bg-green-400 rounded-full"></div>
-                  <span className="text-sm font-medium text-gray-700">
-                    {formatAddress(account)}
-                  </span>
-                </div>
+                <span className="text-sm font-medium text-gray-700">
+                  Welcome, {user?.name || 'User'}
+                </span>
+                
+                {/* Wallet Connection for Trading */}
+                {!canTrade() && (
+                  <button
+                    onClick={connectWallet}
+                    className="text-xs px-2 py-1 bg-yellow-100 text-yellow-800 rounded-md hover:bg-yellow-200"
+                  >
+                    Connect Wallet to Trade
+                  </button>
+                )}
+                
+                
                 <button
-                  onClick={disconnectWallet}
+                  onClick={logout}
                   className="text-sm text-gray-500 hover:text-gray-700"
                 >
-                  Disconnect
+                  Logout
                 </button>
               </div>
             ) : (
-              <button
-                onClick={connectWallet}
-                className="btn-primary"
-              >
-                Connect Wallet
-              </button>
+              <div className="flex items-center space-x-3">
+                <Link
+                  to="/login"
+                  className="text-sm text-gray-600 hover:text-gray-900"
+                >
+                  Sign In
+                </Link>
+                <Link
+                  to="/register"
+                  className="btn-primary text-sm px-4 py-2"
+                >
+                  Sign Up
+                </Link>
+              </div>
             )}
           </div>
         </div>

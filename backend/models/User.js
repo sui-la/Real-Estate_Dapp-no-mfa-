@@ -21,9 +21,16 @@ const userSchema = new mongoose.Schema({
   },
   walletAddress: {
     type: String,
-    required: true,
-    unique: true,
-    lowercase: true
+    required: false, // Not required - allows empty strings
+    default: "", // Default to empty string for new users
+    lowercase: true,
+    validate: {
+      validator: function(v) {
+        // Allow empty string, null, undefined, or valid Ethereum address
+        return !v || v === "" || /^0x[a-fA-F0-9]{40}$/.test(v);
+      },
+      message: 'Invalid Ethereum address format'
+    }
   },
   isAdmin: {
     type: Boolean,
@@ -50,6 +57,6 @@ const userSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Indexes are automatically created by unique: true, no need for explicit indexes
+// No automatic unique index - we'll handle uniqueness in application logic
 
 module.exports = mongoose.model('User', userSchema);

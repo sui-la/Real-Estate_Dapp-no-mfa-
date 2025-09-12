@@ -7,7 +7,6 @@ import {
   PlusIcon,
   BuildingOfficeIcon,
   CurrencyDollarIcon,
-  ChartBarIcon,
   CogIcon,
 } from '@heroicons/react/24/outline'
 
@@ -166,7 +165,7 @@ const Admin = () => {
         location: propertyForm.location,
         totalValue: parseFloat(propertyForm.totalValue),
         totalShares: parseInt(propertyForm.totalShares),
-        imageUrl: propertyForm.imageUrl && propertyForm.imageUrl.startsWith('http') ? propertyForm.imageUrl : 'https://via.placeholder.com/400x300?text=Property+Image',
+        imageUrl: propertyForm.imageUrl && propertyForm.imageUrl.startsWith('http') ? propertyForm.imageUrl : '/vite.svg',
         documents: propertyForm.documents ? propertyForm.documents.split(',').map(doc => doc.trim()) : []
       })
       
@@ -488,7 +487,6 @@ const Admin = () => {
             {[
               { name: 'Properties', value: 'properties', icon: BuildingOfficeIcon },
               { name: 'Dividends', value: 'dividends', icon: CurrencyDollarIcon },
-              { name: 'Analytics', value: 'analytics', icon: ChartBarIcon },
             ].map((tab) => (
               <button
                 key={tab.value}
@@ -840,7 +838,7 @@ const Admin = () => {
                   <div className="mt-3 p-3 bg-blue-50 rounded-lg">
                     <div className="flex items-start space-x-3">
                       <img 
-                        src={selectedProperty.imageUrl || 'https://via.placeholder.com/60x60?text=Property'} 
+                        src={selectedProperty.imageUrl || '/vite.svg'} 
                         alt={selectedProperty.name}
                         className="w-12 h-12 rounded-lg object-cover"
                       />
@@ -996,20 +994,6 @@ const Admin = () => {
         </div>
       )}
 
-      {/* Analytics Tab */}
-      {activeTab === 'analytics' && (
-        <div className="space-y-6">
-          <div className="card">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Platform Analytics</h3>
-            <div className="h-64 bg-gray-50 rounded-lg flex items-center justify-center">
-              <div className="text-center">
-                <ChartBarIcon className="mx-auto h-12 w-12 text-gray-400" />
-                <p className="mt-2 text-sm text-gray-500">Analytics dashboard coming soon</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

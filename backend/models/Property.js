@@ -47,6 +47,10 @@ const propertySchema = new mongoose.Schema({
     required: false,
     default: null
   },
+  isFractionalized: {
+    type: Boolean,
+    default: false
+  },
   isActive: {
     type: Boolean,
     default: true

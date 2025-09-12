@@ -20,7 +20,7 @@ async function syncBlockchainProperties() {
     console.log('🔄 Starting blockchain to database sync...');
 
     // Connect to MongoDB
-    await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/real_estate_dapp');
+    await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/real-estate-dapp');
     console.log('✅ Connected to MongoDB');
 
     // Connect to blockchain
@@ -91,6 +91,7 @@ async function syncBlockchainProperties() {
           sharesSold: Number(blockchainProperty.sharesSold),
           originalOwner: adminUser._id,
           fractionalTokenAddress: fractionalTokenAddress,
+          isFractionalized: true, // All synced properties are fractionalized
           isActive: blockchainProperty.isActive,
           imageUrl: blockchainProperty.imageUrl,
           documents: blockchainProperty.documents,

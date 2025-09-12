@@ -1,19 +1,19 @@
 const mongoose = require('mongoose');
 
 const transactionSchema = new mongoose.Schema({
-  user: {
+  userId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: true
   },
-  property: {
+  propertyId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Property',
     required: true
   },
   type: {
     type: String,
-    enum: ['buy', 'sell', 'dividend', 'transfer'],
+    enum: ['BUY', 'SELL', 'DIVIDEND_RECEIVED', 'DIVIDEND_CLAIMED'],
     required: true
   },
   amount: {
@@ -22,24 +22,15 @@ const transactionSchema = new mongoose.Schema({
   },
   shares: {
     type: Number,
-    required: function() {
-      return ['buy', 'sell', 'transfer'].includes(this.type);
-    }
+    default: 0 // For buy/sell transactions
   },
   pricePerShare: {
     type: Number,
-    required: function() {
-      return ['buy', 'sell'].includes(this.type);
-    }
-  },
-  totalValue: {
-    type: Number,
-    required: true
+    default: 0 // For buy/sell transactions
   },
   transactionHash: {
     type: String,
-    required: true,
-    unique: true
+    required: true
   },
   blockNumber: {
     type: Number,
@@ -47,31 +38,43 @@ const transactionSchema = new mongoose.Schema({
   },
   gasUsed: {
     type: Number,
-    required: true
+    default: 0
   },
-  gasPrice: {
+  gasFee: {
     type: Number,
-    required: true
+    default: 0
   },
   status: {
     type: String,
-    enum: ['pending', 'confirmed', 'failed'],
-    default: 'pending'
+    enum: ['PENDING', 'CONFIRMED', 'FAILED'],
+    default: 'CONFIRMED'
   },
+  fromAddress: {
+    type: String,
+    lowercase: true
+  },
+  toAddress: {
+    type: String,
+    lowercase: true
+  },
+  // For dividend transactions
+  distributionId: {
+    type: Number,
+    default: null
+  },
+  // Additional metadata
   metadata: {
-    orderId: String,
-    dividendId: String,
-    fromAddress: String,
-    toAddress: String
+    type: mongoose.Schema.Types.Mixed,
+    default: {}
   }
 }, {
   timestamps: true
 });
 
-// Indexes for better query performance (transactionHash index is automatic due to unique: true)
-transactionSchema.index({ user: 1, createdAt: -1 });
-transactionSchema.index({ property: 1, createdAt: -1 });
-transactionSchema.index({ type: 1 });
-transactionSchema.index({ status: 1 });
+// Indexes for better query performance
+transactionSchema.index({ userId: 1, createdAt: -1 });
+transactionSchema.index({ propertyId: 1, createdAt: -1 });
+transactionSchema.index({ type: 1, createdAt: -1 });
+transactionSchema.index({ transactionHash: 1 }, { unique: true });
 
 module.exports = mongoose.model('Transaction', transactionSchema);

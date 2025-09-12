@@ -2,8 +2,31 @@ const hre = require("hardhat");
 const fs = require('fs');
 const path = require('path');
 
+async function cleanDatabase() {
+  console.log('🧹 Cleaning database before deployment...');
+  const { exec } = require('child_process');
+  const path = require('path');
+  
+  return new Promise((resolve, reject) => {
+    const cleanScript = path.join(__dirname, '../backend/scripts/clean-database-completely.js');
+    exec(`node ${cleanScript}`, (error, stdout, stderr) => {
+      if (error) {
+        console.error('❌ Error cleaning database:', error);
+        reject(error);
+        return;
+      }
+      console.log(stdout);
+      console.log('✅ Database cleaned successfully');
+      resolve();
+    });
+  });
+}
+
 async function main() {
   console.log("🚀 Starting contract deployment...");
+
+  // Clean database before deployment
+  await cleanDatabase();
 
   // Check if contracts are already deployed
   const addressesFile = 'deployed-addresses.json';

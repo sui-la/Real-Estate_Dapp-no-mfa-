@@ -19,10 +19,10 @@ app.use(morgan('combined'));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
-// Rate limiting
+// Rate limiting - Increased limits for development
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
+  max: 1000, // limit each IP to 1000 requests per windowMs (increased from 100)
   message: 'Too many requests from this IP, please try again later.'
 });
 app.use('/api/', limiter);
@@ -31,8 +31,9 @@ app.use('/api/', limiter);
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/properties', require('./routes/properties'));
 app.use('/api/users', require('./routes/users'));
-app.use('/api/transactions', require('./routes/transactions'));
 app.use('/api/dividends', require('./routes/dividends'));
+app.use('/api/comments', require('./routes/comments'));
+app.use('/api/transactions', require('./routes/transactions'));
 
 // Health check
 app.get('/api/health', (req, res) => {

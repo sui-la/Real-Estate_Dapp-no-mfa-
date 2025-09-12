@@ -23,12 +23,12 @@ const Profile = () => {
   })
 
   React.useEffect(() => {
-    if (user?.profile) {
+    if (user) {
       setFormData({
-        name: user.profile.name || '',
-        email: user.profile.email || '',
-        phone: user.profile.phone || '',
-        address: user.profile.address || '',
+        name: user.name || '',
+        email: user.email || '',
+        phone: user.profile?.phone || '',
+        address: user.profile?.address || '',
       })
     }
   }, [user])
@@ -52,8 +52,8 @@ const Profile = () => {
 
   const handleCancel = () => {
     setFormData({
-      name: user?.profile?.name || '',
-      email: user?.profile?.email || '',
+      name: user?.name || '',
+      email: user?.email || '',
       phone: user?.profile?.phone || '',
       address: user?.profile?.address || '',
     })
@@ -81,7 +81,7 @@ const Profile = () => {
             </div>
             <div className="flex-1">
               <h2 className="text-xl font-semibold text-gray-900">
-                {user?.profile?.name || 'Anonymous User'}
+                {user?.name || 'Anonymous User'}
               </h2>
               <p className="text-gray-600">{formatAddress(account)}</p>
               <p className="text-sm text-gray-500">
@@ -113,7 +113,7 @@ const Profile = () => {
                   placeholder="Enter your full name"
                 />
               ) : (
-                <p className="text-gray-900">{user?.profile?.name || 'Not provided'}</p>
+                <p className="text-gray-900">{user?.name || 'Not provided'}</p>
               )}
             </div>
 
@@ -131,7 +131,7 @@ const Profile = () => {
                   placeholder="Enter your email address"
                 />
               ) : (
-                <p className="text-gray-900">{user?.profile?.email || 'Not provided'}</p>
+                <p className="text-gray-900">{user?.email || 'Not provided'}</p>
               )}
             </div>
 

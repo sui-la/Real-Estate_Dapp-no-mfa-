@@ -6,7 +6,6 @@ import apiService from '../services/ApiService'
 import toast from 'react-hot-toast'
 import {
   BuildingOfficeIcon,
-  ChartBarIcon,
   CurrencyDollarIcon,
   ArrowTrendingUpIcon,
   EyeIcon,
@@ -58,11 +57,14 @@ const Portfolio = () => {
               let claimableDividends = 0
               try {
                 const propertyDividends = await web3Service.getPropertyDividends(property.tokenId)
+                console.log(`📋 [DEBUG] Portfolio: Found ${propertyDividends.length} dividends for property ${property.name}`)
 
                 for (const dividend of propertyDividends) {
                   const claimable = await web3Service.getClaimableDividend(account, dividend.id)
                   claimableDividends += parseFloat(claimable)
+                  console.log(`💰 [DEBUG] Portfolio: Dividend ${dividend.id} claimable amount: ${claimable}`)
                 }
+                console.log(`💰 [DEBUG] Portfolio: Total claimable dividends for ${property.name}: ${claimableDividends}`)
               } catch (dividendError) {
                 console.error('❌ [ERROR] Portfolio: Error getting dividends for property:', property.tokenId, dividendError)
               }
@@ -85,26 +87,6 @@ const Portfolio = () => {
         } catch (error) {
           console.warn(`❌ Could not get ownership info for property ${property.name}:`, error.message)
           console.error('❌ Full error details:', error)
-          
-          // Fallback: Check if this is the KLCC property and user has shares
-          if ((property.name === 'KLCC' || property.name === 'Plagarism') && property.tokenId === 1) {
-            console.log(`🔄 Using fallback for ${property.name} - showing hardcoded ownership`)
-            // Since we know from logs that user bought 1 share, show it
-            portfolioItems.push({
-              id: property._id,
-              tokenId: property.tokenId,
-              name: property.name,
-              description: property.description,
-              location: property.location,
-              imageUrl: property.imageUrl,
-              totalValue: property.totalValue,
-              totalShares: property.totalShares,
-              sharesOwned: '6.0', // Based on latest backend logs: sharesSold: 6
-              ownershipPercentage: '0.6', // 6 out of 1000 shares = 0.6%
-              propertyValueOwned: '6000.0', // 6 shares * $1000 per share
-              claimableDividends: '0'
-            })
-          }
         }
       }
 
@@ -132,8 +114,10 @@ const Portfolio = () => {
       const dividendIds = []
       
       for (const item of portfolio) {
-        const propertyDividends = await web3Service.getPropertyDividends(item.id)
-        dividendIds.push(...propertyDividends.map(d => d.id))
+        if (item.tokenId !== null && item.tokenId !== undefined) {
+          const propertyDividends = await web3Service.getPropertyDividends(item.tokenId)
+          dividendIds.push(...propertyDividends.map(d => d.id))
+        }
       }
 
       if (dividendIds.length === 0) {
@@ -206,17 +190,17 @@ const Portfolio = () => {
         <div className="card">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-lg font-semibold text-gray-900">Claim Dividends</h3>
+              <h3 className="text-lg font-semibold text-gray-900">Dividend Summary</h3>
               <p className="text-sm text-gray-600">
                 You have ${totalDividends.toFixed(2)} in claimable dividends
               </p>
             </div>
             <button
-              onClick={claimAllDividends}
-              className="btn-success"
+              onClick={() => window.location.href = '/dividends'}
+              className="btn-primary"
             >
               <CurrencyDollarIcon className="h-4 w-4 mr-2" />
-              Claim All Dividends
+              Manage Dividends
             </button>
           </div>
         </div>
@@ -298,24 +282,11 @@ const Portfolio = () => {
                   </Link>
                   {parseFloat(item.claimableDividends || 0) > 0 && (
                     <button
-                      onClick={async () => {
-                        try {
-                          const propertyDividends = await web3Service.getPropertyDividends(item.id)
-                          if (propertyDividends.length > 0) {
-                            const dividendIds = propertyDividends.map(d => d.id)
-                            await web3Service.batchClaimDividends(dividendIds)
-                            toast.success('Dividends claimed successfully!')
-                            await loadPortfolio()
-                          }
-                        } catch (error) {
-                          console.error('Error claiming dividends:', error)
-                          toast.error('Failed to claim dividends')
-                        }
-                      }}
-                      className="btn-success flex items-center"
+                      onClick={() => window.location.href = '/dividends'}
+                      className="btn-secondary flex items-center"
                     >
                       <CurrencyDollarIcon className="h-4 w-4 mr-2" />
-                      Claim
+                      View Dividends
                     </button>
                   )}
                 </div>
@@ -325,18 +296,6 @@ const Portfolio = () => {
         </div>
       )}
 
-      {/* Performance Chart Placeholder */}
-      {portfolio.length > 0 && (
-        <div className="card">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Portfolio Performance</h3>
-          <div className="h-64 bg-gray-50 rounded-lg flex items-center justify-center">
-            <div className="text-center">
-              <ChartBarIcon className="mx-auto h-12 w-12 text-gray-400" />
-              <p className="mt-2 text-sm text-gray-500">Performance chart coming soon</p>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

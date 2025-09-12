@@ -7,6 +7,15 @@ const { auth } = require('../middleware/auth');
 
 const router = express.Router();
 
+// Helper function to check if user is admin
+const checkAdminStatus = (email, walletAddress) => {
+  const adminAddress = process.env.ADMIN_ADDRESS || '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266';
+  const adminEmail = process.env.ADMIN_EMAIL;
+  
+  return (walletAddress && walletAddress.toLowerCase() === adminAddress.toLowerCase()) || 
+         (adminEmail && email.toLowerCase() === adminEmail.toLowerCase());
+};
+
 // @route   POST /api/auth/register
 // @desc    Register a new user
 // @access  Public
@@ -14,7 +23,10 @@ router.post('/register', [
   body('email').isEmail().normalizeEmail(),
   body('password').isLength({ min: 6 }),
   body('name').trim().isLength({ min: 2 }),
-  body('walletAddress').isEthereumAddress()
+  body('walletAddress').optional().isEthereumAddress(),
+  body('profile').optional().isObject(),
+  body('profile.phone').optional().trim(),
+  body('profile.address').optional().trim()
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -22,16 +34,19 @@ router.post('/register', [
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { email, password, name, walletAddress } = req.body;
+    const { email, password, name, walletAddress, profile } = req.body;
 
-    // Check if user already exists
+    // Check if user already exists (only check email for email/password registration)
     let user = await User.findOne({ 
-      $or: [{ email }, { walletAddress }] 
+      $or: [
+        { email }, 
+        ...(walletAddress ? [{ walletAddress: walletAddress.toLowerCase() }] : [])
+      ]
     });
 
     if (user) {
       return res.status(400).json({ 
-        error: 'User already exists with this email or wallet address' 
+        error: 'User already exists with this email' + (walletAddress ? ' or wallet address' : '')
       });
     }
 
@@ -39,17 +54,28 @@ router.post('/register', [
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    // Check if user is admin based on environment config
-    const adminAddress = process.env.ADMIN_ADDRESS || '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266';
-    const isAdmin = walletAddress.toLowerCase() === adminAddress.toLowerCase();
+    // Check if wallet is already in use (if provided)
+    if (walletAddress) {
+      const existingWalletUser = await User.findOne({ 
+        walletAddress: walletAddress.toLowerCase()
+      }).where('walletAddress').ne("").ne(null);
+      
+      if (existingWalletUser) {
+        return res.status(400).json({ error: 'Wallet address is already registered' });
+      }
+    }
 
-    // Create user
+    // Check if user is admin based on environment config (only if wallet provided)
+    const isAdmin = walletAddress ? checkAdminStatus(email, walletAddress) : checkAdminStatus(email, null);
+
+    // Create user with empty wallet address for email/password registration
     user = new User({
       email,
       password: hashedPassword,
       name,
-      walletAddress,
-      isAdmin
+      walletAddress: walletAddress ? walletAddress.toLowerCase() : "", // Empty string for new users
+      isAdmin,
+      profile: profile || {}
     });
 
     await user.save();
@@ -108,6 +134,13 @@ router.post('/login', [
       return res.status(400).json({ error: 'Invalid credentials' });
     }
 
+    // Update admin status if it has changed
+    const currentAdminStatus = checkAdminStatus(user.email, user.walletAddress);
+    if (user.isAdmin !== currentAdminStatus) {
+      user.isAdmin = currentAdminStatus;
+      await user.save();
+    }
+
     // Generate JWT
     const payload = {
       user: {
@@ -157,8 +190,7 @@ router.post('/wallet-login', [
     
     if (!user) {
       // Check if user is admin based on environment config
-      const adminAddress = process.env.ADMIN_ADDRESS || '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266';
-      const isAdmin = walletAddress.toLowerCase() === adminAddress.toLowerCase();
+      const isAdmin = checkAdminStatus(`${walletAddress}@wallet.local`, walletAddress);
 
       // Create user if they don't exist
       user = new User({
@@ -245,6 +277,126 @@ router.put('/profile', [
   } catch (error) {
     console.error('Profile update error:', error);
     res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// @route   POST /api/auth/verify
+// @desc    Verify JWT token and get user data
+// @access  Private
+router.get('/verify', auth, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id).select('-password');
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json({
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        walletAddress: user.walletAddress,
+        isAdmin: user.isAdmin,
+        profile: user.profile,
+        createdAt: user.createdAt
+      }
+    });
+  } catch (error) {
+    console.error('Token verification error:', error);
+    res.status(500).json({ error: 'Server error during token verification' });
+  }
+});
+
+// @route   POST /api/auth/check-wallet
+// @desc    Check if wallet address is already linked to an account
+// @access  Public
+router.post('/check-wallet', [
+  body('walletAddress').isEthereumAddress()
+], async (req, res) => {
+  try {
+    const { walletAddress } = req.body;
+    // Check if wallet is already linked to any user (excluding empty strings and null)
+    const existingUser = await User.findOne({ 
+      walletAddress: walletAddress.toLowerCase(),
+      $and: [
+        { walletAddress: { $ne: "" } },
+        { walletAddress: { $ne: null } }
+      ]
+    });
+
+    if (existingUser) {
+      return res.json({
+        isLinked: true,
+        userId: existingUser._id.toString()
+      });
+    }
+
+    return res.json({
+      isLinked: false,
+      userId: null
+    });
+
+  } catch (error) {
+    console.error('Check wallet error:', error);
+    res.status(500).json({ error: 'Server error during wallet check' });
+  }
+});
+
+// @route   POST /api/auth/link-wallet
+// @desc    Link wallet address to existing email account
+// @access  Private
+router.post('/link-wallet', [
+  auth,
+  body('walletAddress').isEthereumAddress()
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { walletAddress } = req.body;
+    const userId = req.user.id;
+
+    // Check if wallet is already linked to another account (excluding empty strings)
+    const existingWalletUser = await User.findOne({ 
+      walletAddress: walletAddress.toLowerCase(),
+      _id: { $ne: userId },
+      $and: [
+        { walletAddress: { $ne: "" } },
+        { walletAddress: { $ne: null } }
+      ]
+    });
+    
+    if (existingWalletUser) {
+      return res.status(400).json({ error: 'Wallet is already linked to another account' });
+    }
+
+    // Update user with wallet address
+    const user = await User.findByIdAndUpdate(
+      userId,
+      { walletAddress: walletAddress.toLowerCase() },
+      { new: true }
+    ).select('-password');
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json({
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        walletAddress: user.walletAddress,
+        isAdmin: user.isAdmin,
+        profile: user.profile,
+        createdAt: user.createdAt
+      }
+    });
+  } catch (error) {
+    console.error('Wallet linking error:', error);
+    res.status(500).json({ error: 'Server error during wallet linking' });
   }
 });
 

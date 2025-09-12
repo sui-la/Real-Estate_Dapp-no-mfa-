@@ -12,6 +12,9 @@ import Trading from './pages/Trading'
 import Dividends from './pages/Dividends'
 import Profile from './pages/Profile'
 import Admin from './pages/Admin'
+import Login from './pages/Login'
+import Register from './pages/Register'
+import TransactionHistory from './pages/TransactionHistory'
 
 function App() {
   return (
@@ -22,11 +25,14 @@ function App() {
             <Layout>
               <Routes>
                 <Route path="/" element={<Home />} />
+                <Route path="/login" element={<Login />} />
+                <Route path="/register" element={<Register />} />
                 <Route path="/properties" element={<Properties />} />
                 <Route path="/properties/:id" element={<PropertyDetail />} />
                 <Route path="/portfolio" element={<Portfolio />} />
                 <Route path="/trading" element={<Trading />} />
                 <Route path="/dividends" element={<Dividends />} />
+                <Route path="/transactions" element={<TransactionHistory />} />
                 <Route path="/profile" element={<Profile />} />
                 <Route path="/admin" element={<Admin />} />
               </Routes>

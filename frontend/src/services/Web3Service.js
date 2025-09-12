@@ -37,9 +37,7 @@ class Web3Service {
         fractionalTokenSymbol
       )
 
-      console.log('✅ [SUCCESS] Web3Service: Transaction sent:', tx.hash)
       const receipt = await tx.wait()
-      console.log('✅ [SUCCESS] Web3Service: Transaction confirmed:', receipt)
       
       // Additional debugging for transaction logs
       if (receipt.logs && receipt.logs.length > 0) {
@@ -185,10 +183,7 @@ class Web3Service {
     try {
 
       const tx = await this.contracts.realEstateFractionalization.enableTrading(propertyId)
-      console.log('✅ [SUCCESS] Web3Service: Trading enable transaction sent:', tx.hash)
-      
       const receipt = await tx.wait()
-      console.log('✅ [SUCCESS] Web3Service: Trading enabled successfully:', receipt)
       return receipt
     } catch (error) {
       console.error('❌ [ERROR] Web3Service: Error enabling trading:', error)
@@ -274,9 +269,9 @@ class Web3Service {
         gasLimit: 500000 // Add explicit gas limit
       })
 
-      console.log('🔄 [DEBUG] Transaction sent:', tx.hash)
       const receipt = await tx.wait()
-      console.log('✅ [SUCCESS] Transaction confirmed:', receipt.hash)
+      
+      
       return receipt
     } catch (error) {
       console.error('❌ [ERROR] Error purchasing shares:', error)
@@ -388,15 +383,25 @@ class Web3Service {
   // Dividend Management
   async distributeDividends(propertyId, description, amount) {
     try {
+      // Get fractional token address for this property
+      const fractionalTokenAddress = await this.contracts.realEstateFractionalization.fractionalTokens(propertyId)
+      
       const tx = await this.contracts.realEstateFractionalization.distributeDividends(
         propertyId,
         description,
         { value: ethers.parseEther(amount.toString()) }
       )
       const receipt = await tx.wait()
+      
+      
       return receipt
     } catch (error) {
-      console.error('Error distributing dividends:', error)
+      console.error('❌ [DEBUG] Error distributing dividends:', error)
+      console.error('❌ [DEBUG] Error details:', {
+        message: error.message,
+        code: error.code,
+        data: error.data
+      })
       throw error
     }
   }
@@ -435,17 +440,26 @@ class Web3Service {
 
   async getPropertyDividends(propertyId) {
     try {
-      const dividendIds = await this.contracts.realEstateFractionalization.getPropertyDividends(propertyId)
+      const numericPropertyId = Number(propertyId)
+      if (isNaN(numericPropertyId) || numericPropertyId <= 0) {
+        return []
+      }
+      
+      const dividendIds = await this.contracts.realEstateFractionalization.getPropertyDividends(numericPropertyId)
       const dividends = []
 
       for (const dividendId of dividendIds) {
-        const dividend = await this.contracts.dividendDistributor.getDividend(dividendId)
-        dividends.push({
-          id: dividendId,
-          ...dividend,
-          totalAmountFormatted: ethers.formatEther(dividend.totalAmount),
-          distributedAmountFormatted: ethers.formatEther(dividend.distributedAmount)
-        })
+        try {
+          const dividend = await this.contracts.dividendDistributor.getDividend(dividendId)
+          dividends.push({
+            id: Number(dividendId),
+            ...dividend,
+            totalAmountFormatted: ethers.formatEther(dividend.totalAmount),
+            distributedAmountFormatted: ethers.formatEther(dividend.distributedAmount)
+          })
+        } catch (dividendError) {
+          console.error('Error getting dividend details for ID:', dividendId, dividendError)
+        }
       }
 
       return dividends
@@ -457,13 +471,15 @@ class Web3Service {
 
   async getClaimableDividend(userAddress, dividendId) {
     try {
-      console.log('🔍 [DEBUG] Web3Service: Getting claimable dividend for user:', userAddress, 'dividend:', dividendId)
-      const claimableAmount = await this.contracts.dividendDistributor.getClaimableDividend(userAddress, BigInt(dividendId))
-      const formatted = ethers.formatEther(claimableAmount)
-      console.log('💰 [DEBUG] Web3Service: Claimable amount:', formatted, 'ETH')
-      return formatted
+      const numericDividendId = Number(dividendId)
+      if (isNaN(numericDividendId) || numericDividendId <= 0) {
+        return '0'
+      }
+      
+      const claimableAmount = await this.contracts.dividendDistributor.getClaimableDividend(userAddress, BigInt(numericDividendId))
+      return ethers.formatEther(claimableAmount)
     } catch (error) {
-      console.error('❌ [ERROR] Web3Service: Error getting claimable dividend:', error)
+      console.error('Error getting claimable dividend:', error)
       return '0'
     }
   }
