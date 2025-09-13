@@ -264,6 +264,51 @@ router.put('/:id/shares', [
   }
 });
 
+// @route   PUT /api/properties/:tokenId/trading
+// @desc    Update trading status for a property by tokenId
+// @access  Private (Admin only)
+router.put('/:tokenId/trading', [
+  auth,
+  body('tradingEnabled').isBoolean()
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      console.log('❌ [ERROR] Validation errors:', errors.array());
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    // Check if user is admin
+    const user = await User.findById(req.user.id);
+    if (!user.isAdmin) {
+      console.log('❌ [ERROR] User is not admin');
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const tokenId = parseInt(req.params.tokenId);
+    const { tradingEnabled } = req.body;
+
+    const property = await Property.findOne({ tokenId: tokenId });
+    if (!property) {
+      console.log('❌ [ERROR] Property not found with tokenId:', tokenId);
+      return res.status(404).json({ error: 'Property not found' });
+    }
+
+    property.tradingEnabled = tradingEnabled;
+    await property.save();
+    
+    console.log(`✅ [SUCCESS] Trading ${tradingEnabled ? 'enabled' : 'disabled'} for property:`, property.name);
+    res.json({ 
+      success: true, 
+      message: `Trading ${tradingEnabled ? 'enabled' : 'disabled'} successfully`,
+      property: property 
+    });
+  } catch (error) {
+    console.error('❌ [ERROR] Update trading status error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // @route   GET /api/properties/:id/analytics
 // @desc    Get property analytics
 // @access  Public

@@ -220,10 +220,6 @@ const Profile = () => {
           
           <div className="space-y-3">
             <div className="flex items-center justify-between py-2">
-              <span className="text-gray-600">Two-Factor Authentication</span>
-              <span className="text-sm text-gray-500">Not available</span>
-            </div>
-            <div className="flex items-center justify-between py-2">
               <span className="text-gray-600">Wallet Connection</span>
               <span className="text-sm text-green-600">Connected</span>
             </div>

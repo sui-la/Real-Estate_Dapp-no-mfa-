@@ -55,6 +55,10 @@ const propertySchema = new mongoose.Schema({
     type: Boolean,
     default: true
   },
+  tradingEnabled: {
+    type: Boolean,
+    default: false
+  },
   imageUrl: {
     type: String,
     default: ''

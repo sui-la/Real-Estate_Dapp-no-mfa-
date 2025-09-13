@@ -85,6 +85,13 @@ class ApiService {
     })
   }
 
+  async updateTradingStatus(tokenId, tradingEnabled) {
+    return this.request(`/properties/${tokenId}/trading`, {
+      method: 'PUT',
+      body: JSON.stringify({ tradingEnabled })
+    })
+  }
+
   // User endpoints
   async updateProfile(profileData) {
     return this.request('/auth/profile', {

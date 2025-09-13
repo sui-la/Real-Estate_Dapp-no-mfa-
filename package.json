@@ -7,7 +7,7 @@
     "start": "node scripts/start-dapp.js",
     "start:windows": "start-dapp.bat",
     "start:unix": "./start-dapp.sh",
-    "dev": "concurrently \"npm run dev:frontend\" \"npm run dev:backend\"",
+    "dev": "set NODE_OPTIONS=--no-deprecation && concurrently \"npm run dev:frontend\" \"npm run dev:backend\"",
     "dev:frontend": "cd frontend && npm run dev",
     "dev:backend": "cd backend && npm run dev",
     "build": "cd frontend && npm run build",
@@ -19,10 +19,19 @@
     "hardhat:node": "cd contracts && npx hardhat node",
     "hardhat:fork": "cd contracts && npx hardhat node --fork https://eth-sepolia.g.alchemy.com/v2/YOUR_API_KEY"
   },
-  "keywords": ["blockchain", "ethereum", "real-estate", "fractionalization", "dapp"],
+  "keywords": [
+    "blockchain",
+    "ethereum",
+    "real-estate",
+    "fractionalization",
+    "dapp"
+  ],
   "author": "Real Estate Fractionalization Team",
   "license": "MIT",
   "devDependencies": {
     "concurrently": "^8.2.2"
+  },
+  "dependencies": {
+    "mongodb": "^6.19.0"
   }
 }

@@ -25,7 +25,7 @@ router.get('/property/:propertyId', async (req, res) => {
 router.post('/property/:propertyId', auth, async (req, res) => {
   try {
     const { propertyId } = req.params;
-    const { content, rating, sharesOwned } = req.body;
+    const { content, rating } = req.body;
     const userId = req.user.id;
     const walletAddress = req.user.walletAddress;
 
@@ -38,8 +38,25 @@ router.post('/property/:propertyId', auth, async (req, res) => {
       return res.status(400).json({ error: 'Rating must be between 1 and 5' });
     }
 
-    if (sharesOwned < 0) {
-      return res.status(400).json({ error: 'Invalid shares amount' });
+    // Get actual shares owned from blockchain
+    const web3Service = require('../utils/web3Service');
+    let sharesOwned = 0;
+
+    try {
+      if (web3Service && web3Service.getUserShareBalance) {
+        sharesOwned = await web3Service.getUserShareBalance(walletAddress, propertyId);
+      }
+    } catch (error) {
+      console.warn('Could not get shares balance from blockchain:', error.message);
+      // Continue with sharesOwned = 0
+    }
+
+    // Require user to own shares to comment
+    if (sharesOwned <= 0) {
+      return res.status(403).json({ 
+        error: 'You must own shares of this property to comment',
+        sharesRequired: true 
+      });
     }
 
     // Check if user already commented on this property

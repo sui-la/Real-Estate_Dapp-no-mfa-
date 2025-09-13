@@ -114,8 +114,7 @@ const Comments = ({ propertyId }) => {
         },
         body: JSON.stringify({
           content: formData.content.trim(),
-          rating: formData.rating,
-          sharesOwned: userShares
+          rating: formData.rating
         })
       });
 
@@ -136,7 +135,13 @@ const Comments = ({ propertyId }) => {
         loadCommentStats();
       } else {
         const errorData = await response.json();
-        toast.error(errorData.error || 'Failed to post comment');
+        if (errorData.sharesRequired) {
+          toast.error('You must own shares of this property to comment');
+          // Refresh user shares in case they've changed
+          await checkUserShares();
+        } else {
+          toast.error(errorData.error || 'Failed to post comment');
+        }
       }
     } catch (error) {
       console.error('Error submitting comment:', error);
@@ -216,7 +221,16 @@ const Comments = ({ propertyId }) => {
   const canUserComment = () => {
     if (!isAuthenticated) return false;
     const hasExistingComment = comments.some(c => c.userId?._id === user?.id);
-    return !hasExistingComment;
+    const hasShares = userShares > 0;
+    return !hasExistingComment && hasShares;
+  };
+
+  const getCommentRestrictionMessage = () => {
+    if (!isAuthenticated) return 'Please connect your wallet to leave a review';
+    if (userShares <= 0) return 'You must own shares of this property to leave a review';
+    const hasExistingComment = comments.some(c => c.userId?._id === user?.id);
+    if (hasExistingComment) return 'You have already reviewed this property';
+    return null;
   };
 
   if (loading) {
@@ -256,13 +270,23 @@ const Comments = ({ propertyId }) => {
           )}
         </div>
         
-        {isAuthenticated && canUserComment() && (
-          <button
-            onClick={() => setShowCommentForm(!showCommentForm)}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            Write Review
-          </button>
+        {isAuthenticated ? (
+          canUserComment() ? (
+            <button
+              onClick={() => setShowCommentForm(!showCommentForm)}
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              Write Review
+            </button>
+          ) : (
+            <div className="text-sm text-gray-500 bg-gray-100 px-3 py-2 rounded-md">
+              {getCommentRestrictionMessage()}
+            </div>
+          )
+        ) : (
+          <div className="text-sm text-gray-500 bg-gray-100 px-3 py-2 rounded-md">
+            Connect wallet to leave a review
+          </div>
         )}
       </div>
 
@@ -327,7 +351,8 @@ const Comments = ({ propertyId }) => {
       {comments.length === 0 ? (
         <div className="text-center py-8 text-gray-500">
           <ChatBubbleLeftRightIcon className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-          <p>No reviews yet. Be the first to share your experience!</p>
+          <p>No reviews yet.</p>
+          <p className="text-sm mt-2">Only property shareholders can leave reviews.</p>
         </div>
       ) : (
         <div className="space-y-6">

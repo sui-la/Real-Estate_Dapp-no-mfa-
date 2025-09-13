@@ -15,8 +15,13 @@ A comprehensive decentralized application that enables fractional ownership of r
 - [🆘 Support & Troubleshooting](#-support--troubleshooting)
 - [🗺️ Roadmap](#️-roadmap)
 
-## 🎉 Latest Updates (v2.0)
+## 🎉 Latest Updates (v2.1)
 
+- ✅ **Share-Based Comments**: Only property shareholders can leave reviews
+- ✅ **Wallet Security**: Fixed wallet sharing issues and added proper user switching
+- ✅ **Trading Toggle Fix**: Fixed enable/disable trading button functionality
+- ✅ **Spam Prevention**: Eliminated infinite wallet connection message loops
+- ✅ **MongoDB Integration**: Comprehensive database setup guide included
 - ✅ **Deterministic Deployment**: Fixed contract addresses that never change
 - ✅ **BigInt Compatibility**: Resolved all BigInt conversion errors
 - ✅ **Trading Status Management**: Added trading enable/disable functionality
@@ -36,7 +41,9 @@ A comprehensive decentralized application that enables fractional ownership of r
 - **Portfolio Management**: Real-time portfolio tracking and analytics
 
 ### Advanced Features
-- **Admin Dashboard**: Property creation and management tools
+- **Admin Dashboard**: Property creation and management tools with trading controls
+- **Share-Based Reviews**: Only property shareholders can leave comments and ratings
+- **Secure Wallet Management**: Proper wallet ownership validation and user switching
 - **Real-time Trading**: Live order book with instant execution
 - **Dividend Claims**: Batch dividend claiming functionality
 - **Property Analytics**: Detailed property performance metrics
@@ -97,10 +104,67 @@ Real_Estate_Dapp/
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Node.js (v16 or higher)
-- MongoDB (local or Atlas)
-- MetaMask browser extension
-- Git
+- **Node.js** (v16 or higher) - [Download here](https://nodejs.org/)
+- **MongoDB** (Community Edition) - [Installation guide](#-mongodb-setup)
+- **MetaMask** browser extension - [Install here](https://metamask.io/)
+- **Git** - [Download here](https://git-scm.com/)
+
+### 📦 MongoDB Setup
+
+#### Option 1: Local MongoDB (Recommended for Development)
+
+**Windows:**
+1. Download MongoDB Community Edition from [mongodb.com](https://www.mongodb.com/try/download/community)
+2. Install with default settings
+3. MongoDB will start automatically as a service
+4. Default connection: `mongodb://localhost:27017`
+
+**macOS (using Homebrew):**
+```bash
+# Install MongoDB
+brew tap mongodb/brew
+brew install mongodb-community
+
+# Start MongoDB service
+brew services start mongodb-community
+
+# Verify installation
+mongosh
+```
+
+**Linux (Ubuntu/Debian):**
+```bash
+# Import MongoDB public key
+wget -qO - https://www.mongodb.org/static/pgp/server-6.0.asc | sudo apt-key add -
+
+# Add MongoDB repository
+echo "deb [ arch=amd64,arm64 ] https://repo.mongodb.org/apt/ubuntu focal/mongodb-org/6.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-6.0.list
+
+# Install MongoDB
+sudo apt-get update
+sudo apt-get install -y mongodb-org
+
+# Start MongoDB service
+sudo systemctl start mongod
+sudo systemctl enable mongod
+```
+
+#### Option 2: MongoDB Atlas (Cloud)
+1. Create free account at [mongodb.com/atlas](https://www.mongodb.com/atlas)
+2. Create a new cluster (free tier available)
+3. Get connection string from "Connect" button
+4. Use in backend `.env` file: `MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/real_estate_dapp`
+
+#### Verify MongoDB Installation
+```bash
+# Test local connection
+mongosh
+
+# Should show something like:
+# Current Mongosh Log ID: ...
+# Connecting to: mongodb://127.0.0.1:27017
+# Using MongoDB: 6.0.x
+```
 
 ### 🎯 One-Click Setup (Recommended)
 
@@ -234,7 +298,12 @@ VITE_DIVIDEND_DISTRIBUTOR_ADDRESS=0xeEBe00Ac0756308ac4AaBfD76c05c4F3088B8883
 - ✅ **User Authentication**: Wallet-based authentication system
 - ✅ **Portfolio Tracking**: Real-time portfolio management
 
-### 🔧 Recent Major Fixes
+### 🔧 Recent Major Fixes (v2.1)
+- ✅ **Share-Based Comments**: Only shareholders can review properties (enhanced security)
+- ✅ **Wallet Security**: Fixed wallet sharing between users with proper switching
+- ✅ **Trading Controls**: Fixed enable/disable trading buttons with blockchain sync
+- ✅ **Connection Spam**: Eliminated infinite wallet connection message loops
+- ✅ **MongoDB Integration**: Complete database setup and connection guides
 - ✅ **BigInt Compatibility**: Fixed all BigInt conversion errors in frontend
 - ✅ **Trading Status Management**: Added enable/disable trading functionality
 - ✅ **Deterministic Deployment**: Contract addresses never change anymore

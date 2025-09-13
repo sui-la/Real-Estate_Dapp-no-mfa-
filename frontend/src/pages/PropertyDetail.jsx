@@ -47,43 +47,23 @@ const PropertyDetail = () => {
 
       setProperty(propertyDetails)
       
-      // Check if property has fractional token address and trading is enabled
+      // Set trading status from database
+      setIsTradingEnabled(propertyDetails.tradingEnabled || false)
+      
+      // Load user ownership information if user is connected and property has fractional token
       if (propertyDetails.fractionalTokenAddress && 
           propertyDetails.fractionalTokenAddress !== '0x0000000000000000000000000000000000000000' &&
-          propertyDetails.tokenId !== null) {
-
-        // Check trading status from smart contract
-        if (web3Service) {
-          try {
-            const tradingEnabled = await web3Service.isTradingEnabled(propertyDetails.tokenId)
-            setIsTradingEnabled(tradingEnabled)
-
-            // Load user ownership information if user is connected
-            if (isAuthenticated) {
-              try {
-
-                const userAddress = await web3Service.signer.getAddress()
-
-                const ownership = await web3Service.getUserOwnershipInfo(userAddress, propertyDetails.tokenId)
-
-                setUserOwnership(ownership)
-              } catch (ownershipError) {
-                console.error('❌ [ERROR] PropertyDetail: Error loading user ownership:', ownershipError)
-                console.error('❌ [ERROR] PropertyDetail: Error details:', ownershipError.message)
-                setUserOwnership(null)
-              }
-            }
-          } catch (contractError) {
-            console.error('❌ [ERROR] PropertyDetail: Error checking trading status:', contractError)
-            setIsTradingEnabled(false)
-          }
-        } else {
-
-          setIsTradingEnabled(false)
+          propertyDetails.tokenId !== null &&
+          isAuthenticated && web3Service) {
+        try {
+          const userAddress = await web3Service.signer.getAddress()
+          const ownership = await web3Service.getUserOwnershipInfo(userAddress, propertyDetails.tokenId)
+          setUserOwnership(ownership)
+        } catch (ownershipError) {
+          console.error('❌ [ERROR] PropertyDetail: Error loading user ownership:', ownershipError)
+          console.error('❌ [ERROR] PropertyDetail: Error details:', ownershipError.message)
+          setUserOwnership(null)
         }
-      } else {
-        setIsTradingEnabled(false)
-
       }
 
     } catch (error) {

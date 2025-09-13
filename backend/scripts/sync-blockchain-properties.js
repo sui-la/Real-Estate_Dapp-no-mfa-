@@ -15,6 +15,10 @@ const REAL_ESTATE_ABI = [
   "function fractionalTokens(uint256) external view returns (address)"
 ];
 
+const FRACTIONAL_TOKEN_ABI = [
+  "function tradingEnabled() external view returns (bool)"
+];
+
 async function syncBlockchainProperties() {
   try {
     console.log('🔄 Starting blockchain to database sync...');
@@ -77,6 +81,20 @@ async function syncBlockchainProperties() {
         
         // Get fractional token address
         const fractionalTokenAddress = await mainContract.fractionalTokens(tokenId);
+        
+        // Check trading status from fractional token contract
+        let tradingEnabled = false;
+        try {
+          const fractionalToken = new ethers.Contract(
+            fractionalTokenAddress,
+            FRACTIONAL_TOKEN_ABI,
+            signer
+          );
+          tradingEnabled = await fractionalToken.tradingEnabled();
+          console.log(`📈 Trading enabled for ${blockchainProperty.name}: ${tradingEnabled}`);
+        } catch (error) {
+          console.warn(`⚠️ Could not check trading status for token ${tokenId}:`, error.message);
+        }
 
         // Check if property already exists in database
         let dbProperty = await Property.findOne({ tokenId });
@@ -93,6 +111,7 @@ async function syncBlockchainProperties() {
           fractionalTokenAddress: fractionalTokenAddress,
           isFractionalized: true, // All synced properties are fractionalized
           isActive: blockchainProperty.isActive,
+          tradingEnabled: tradingEnabled, // Add trading status from blockchain
           imageUrl: blockchainProperty.imageUrl,
           documents: blockchainProperty.documents,
           createdAt: new Date(Number(blockchainProperty.createdAt) * 1000),

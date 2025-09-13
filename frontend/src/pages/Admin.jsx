@@ -380,30 +380,17 @@ const Admin = () => {
       console.log('🔍 [DEBUG] Admin: Properties count:', propertiesList.length)
       setProperties(propertiesList)
 
-      // Fetch trading status for each property that has a tokenId
-      if (web3Service && isConnected) {
-        setLoadingTradingStatus(true)
-        const tradingStatusMap = {}
-        
-        console.log('🔄 Checking trading status for all properties...')
-        
-        for (const property of propertiesList) {
-          if (property.tokenId) {
-            try {
-              const isEnabled = await web3Service.isTradingEnabled(property.tokenId)
-              tradingStatusMap[property.tokenId] = isEnabled
-              console.log(`🔍 Trading status for ${property.name} (ID: ${property.tokenId}):`, isEnabled)
-            } catch (error) {
-              console.warn(`⚠️ Could not check trading status for ${property.name}:`, error.message)
-              tradingStatusMap[property.tokenId] = false
-            }
-          }
+      // Extract trading status from database properties
+      const tradingStatusMap = {}
+      for (const property of propertiesList) {
+        if (property.tokenId) {
+          // Use tradingEnabled from database instead of blockchain call
+          tradingStatusMap[property.tokenId] = property.tradingEnabled || false
+          console.log(`🔍 Trading status for ${property.name} (ID: ${property.tokenId}):`, property.tradingEnabled)
         }
-        
-        setPropertyTradingStatus(tradingStatusMap)
-        setLoadingTradingStatus(false)
-        console.log('✅ Trading status check completed')
       }
+      setPropertyTradingStatus(tradingStatusMap)
+      console.log('✅ Trading status extracted from database')
     } catch (error) {
       console.error('Error fetching properties:', error)
       toast.error('Failed to fetch properties')
@@ -416,9 +403,14 @@ const Admin = () => {
     try {
       setLoading(true)
 
+      // First, enable trading on the blockchain
       await web3Service.enableTrading(propertyTokenId)
+      console.log('✅ [SUCCESS] Admin: Trading enabled on blockchain')
       
-      console.log('✅ [SUCCESS] Admin: Trading enabled successfully')
+      // Then, update the database
+      await ApiService.updateTradingStatus(propertyTokenId, true)
+      console.log('✅ [SUCCESS] Admin: Trading status updated in database')
+      
       toast.success('Trading enabled successfully!')
       
       // Refresh properties list
@@ -435,9 +427,14 @@ const Admin = () => {
     try {
       setLoading(true)
 
+      // First, disable trading on the blockchain
       await web3Service.disableTrading(propertyTokenId)
+      console.log('✅ [SUCCESS] Admin: Trading disabled on blockchain')
       
-      console.log('✅ [SUCCESS] Admin: Trading disabled successfully')
+      // Then, update the database
+      await ApiService.updateTradingStatus(propertyTokenId, false)
+      console.log('✅ [SUCCESS] Admin: Trading status updated in database')
+      
       toast.success('Trading disabled successfully!')
       
       // Refresh properties list

@@ -11,6 +11,7 @@ export const AuthProvider = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [isWalletConnected, setIsWalletConnected] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const [isLinkingWallet, setIsLinkingWallet] = useState(false)
 
   // Check for existing token on app load
   useEffect(() => {
@@ -22,13 +23,15 @@ export const AuthProvider = ({ children }) => {
     if (isConnected && account) {
       setIsWalletConnected(true)
       // If user is already logged in with email, link their wallet
-      if (isAuthenticated && user) {
+      // Only link if wallet is different from user's current wallet and not already linking
+      if (isAuthenticated && user && !isLinkingWallet && 
+          user.walletAddress?.toLowerCase() !== account.toLowerCase()) {
         linkWalletToAccount(account)
       }
     } else {
       setIsWalletConnected(false)
     }
-  }, [isConnected, account, isAuthenticated, user])
+  }, [isConnected, account, isAuthenticated, user, isLinkingWallet])
 
   const checkExistingAuth = async () => {
     const token = localStorage.getItem('token')
@@ -128,11 +131,18 @@ export const AuthProvider = ({ children }) => {
 
   // Link wallet to existing email account
   const linkWalletToAccount = async (walletAddress) => {
+    if (isLinkingWallet) {
+      console.log('🔄 Already linking wallet, skipping...')
+      return
+    }
+    
     try {
+      setIsLinkingWallet(true)
       console.log('🔗 linkWalletToAccount called with:', walletAddress)
       const token = localStorage.getItem('token')
       if (!token) {
         console.log('❌ No token found, aborting wallet link')
+        setIsLinkingWallet(false)
         return
       }
       console.log('✅ Token found, proceeding with wallet link')
@@ -153,10 +163,21 @@ export const AuthProvider = ({ children }) => {
         console.log('📊 Check wallet data:', checkData)
         if (checkData.isLinked && checkData.userId !== user?.id) {
           console.log('❌ Wallet belongs to another user')
-          toast.error('This wallet is already linked to another account!')
-          // Disconnect the wallet since it belongs to someone else
-          if (disconnectWallet) {
-            disconnectWallet()
+          
+          // Offer to switch to the account that owns this wallet
+          const shouldSwitch = window.confirm(
+            `This wallet is linked to another account. Would you like to switch to that account?\n\nClick OK to switch accounts, or Cancel to disconnect the wallet.`
+          )
+          
+          if (shouldSwitch) {
+            // Switch to the account that owns this wallet
+            await switchToWalletOwner(checkData.userId)
+          } else {
+            toast.error('Wallet disconnected - it belongs to another account')
+            // Disconnect the wallet since it belongs to someone else
+            if (disconnectWallet) {
+              disconnectWallet()
+            }
           }
           return
         }
@@ -164,7 +185,8 @@ export const AuthProvider = ({ children }) => {
         // If wallet is already linked to current user, just update state
         if (checkData.isLinked && checkData.userId === user?.id) {
           console.log('✅ Wallet already linked to current user')
-          toast.success('Wallet already linked to your account!')
+          // Don't show toast for already linked wallets to prevent spam
+          setIsLinkingWallet(false)
           return
         }
         
@@ -201,6 +223,60 @@ export const AuthProvider = ({ children }) => {
       console.error('❌ Wallet linking error:', error)
       toast.error('Failed to link wallet')
       // Disconnect wallet on error
+      if (disconnectWallet) {
+        disconnectWallet()
+      }
+    } finally {
+      setIsLinkingWallet(false)
+    }
+  }
+
+  // Switch to the user account that owns the connected wallet
+  const switchToWalletOwner = async (userId) => {
+    try {
+      console.log('🔄 Switching to wallet owner:', userId)
+      
+      // Fetch the user data for the wallet owner
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/user/${userId}`)
+      
+      if (response.ok) {
+        const userData = await response.json()
+        
+        // Create a token for this user (this would need proper authentication in production)
+        // For development, we'll simulate the switch
+        const loginResponse = await fetch(`${import.meta.env.VITE_API_URL}/auth/wallet-switch`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ 
+            userId: userId,
+            walletAddress: account 
+          })
+        })
+        
+        if (loginResponse.ok) {
+          const loginData = await loginResponse.json()
+          localStorage.setItem('token', loginData.token)
+          setUser(loginData.user)
+          setIsAuthenticated(true)
+          toast.success(`Switched to account: ${loginData.user.name}`)
+        } else {
+          const errorData = await loginResponse.json()
+          toast.error(errorData.error || 'Failed to switch accounts')
+          if (disconnectWallet) {
+            disconnectWallet()
+          }
+        }
+      } else {
+        toast.error('Failed to switch accounts')
+        if (disconnectWallet) {
+          disconnectWallet()
+        }
+      }
+    } catch (error) {
+      console.error('Error switching to wallet owner:', error)
+      toast.error('Failed to switch accounts')
       if (disconnectWallet) {
         disconnectWallet()
       }

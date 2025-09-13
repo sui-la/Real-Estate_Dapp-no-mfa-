@@ -400,4 +400,76 @@ router.post('/link-wallet', [
   }
 });
 
+// @route   GET /api/auth/user/:userId
+// @desc    Get user by ID (for wallet switching)
+// @access  Public (in development - should be protected in production)
+router.get('/user/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    
+    const user = await User.findById(userId).select('-password');
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    res.json(user);
+  } catch (error) {
+    console.error('Get user error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// @route   POST /api/auth/wallet-switch
+// @desc    Switch to user account that owns the connected wallet
+// @access  Public (in development - should be protected in production)
+router.post('/wallet-switch', async (req, res) => {
+  try {
+    const { userId, walletAddress } = req.body;
+    
+    // Find the user and verify they own this wallet
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    if (user.walletAddress?.toLowerCase() !== walletAddress.toLowerCase()) {
+      return res.status(400).json({ error: 'Wallet address does not match user account' });
+    }
+    
+    // Generate JWT token for the user
+    const payload = {
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        walletAddress: user.walletAddress,
+        isAdmin: user.isAdmin
+      }
+    };
+    
+    jwt.sign(
+      payload,
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' },
+      (err, token) => {
+        if (err) throw err;
+        
+        res.json({
+          token,
+          user: {
+            id: user._id,
+            name: user.name,
+            email: user.email,
+            walletAddress: user.walletAddress,
+            isAdmin: user.isAdmin
+          }
+        });
+      }
+    );
+  } catch (error) {
+    console.error('Wallet switch error:', error);
+    res.status(500).json({ error: 'Server error during wallet switch' });
+  }
+});
+
 module.exports = router;

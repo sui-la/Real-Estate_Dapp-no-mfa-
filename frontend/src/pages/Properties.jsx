@@ -29,30 +29,19 @@ const Properties = () => {
     loadProperties()
   }, [])
 
-  // Reload trading status when web3Service or connection changes
+  // Extract trading status from database properties
   useEffect(() => {
-    if (web3Service && isConnected && properties.length > 0) {
-      const fetchTradingStatus = async () => {
-        const tradingStatusMap = {}
-        
-        for (const property of properties) {
-          if (property.tokenId) {
-            try {
-              const isEnabled = await web3Service.isTradingEnabled(property.tokenId)
-              tradingStatusMap[property.tokenId] = isEnabled
-            } catch (error) {
-              console.warn(`Could not check trading status for ${property.name}:`, error.message)
-              tradingStatusMap[property.tokenId] = false
-            }
-          }
-        }
-        
-        setPropertyTradingStatus(tradingStatusMap)
+    const tradingStatusMap = {}
+    
+    for (const property of properties) {
+      if (property.tokenId) {
+        // Use tradingEnabled from database instead of blockchain call
+        tradingStatusMap[property.tokenId] = property.tradingEnabled || false
       }
-
-      fetchTradingStatus()
     }
-  }, [web3Service, isConnected, properties])
+    
+    setPropertyTradingStatus(tradingStatusMap)
+  }, [properties])
 
   const loadProperties = async () => {
     try {
@@ -70,24 +59,7 @@ const Properties = () => {
 
       setProperties(validProperties)
 
-      // Fetch trading status for each property that has a tokenId
-      if (web3Service && isConnected) {
-        const tradingStatusMap = {}
-        
-        for (const property of validProperties) {
-          if (property.tokenId) {
-            try {
-              const isEnabled = await web3Service.isTradingEnabled(property.tokenId)
-              tradingStatusMap[property.tokenId] = isEnabled
-            } catch (error) {
-              console.warn(`Could not check trading status for ${property.name}:`, error.message)
-              tradingStatusMap[property.tokenId] = false
-            }
-          }
-        }
-        
-        setPropertyTradingStatus(tradingStatusMap)
-      }
+      // Trading status will be set by the useEffect hook above
 
     } catch (error) {
       console.error('Error loading properties:', error)

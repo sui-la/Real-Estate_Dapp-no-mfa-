@@ -571,17 +571,6 @@ class Web3Service {
 
   // Admin Functions
 
-  async disableTrading(propertyId) {
-    try {
-      const tx = await this.contracts.realEstateFractionalization.disableTrading(propertyId)
-      const receipt = await tx.wait()
-      return receipt
-    } catch (error) {
-      console.error('Error disabling trading:', error)
-      throw error
-    }
-  }
-
   // Debug Functions
   async debugPropertyCreation(tokenId) {
     try {
