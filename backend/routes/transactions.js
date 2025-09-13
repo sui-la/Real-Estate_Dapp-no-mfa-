@@ -344,13 +344,27 @@ router.post('/track-pending', auth, async (req, res) => {
       toAddress
     } = req.body;
 
+    // Validate required fields
+    if (!propertyId) {
+      return res.status(400).json({ error: 'Property ID is required' });
+    }
+    if (!type) {
+      return res.status(400).json({ error: 'Transaction type is required' });
+    }
+    if (!transactionHash) {
+      return res.status(400).json({ error: 'Transaction hash is required' });
+    }
+    if (amount === undefined || amount === null || isNaN(amount) || amount < 0) {
+      return res.status(400).json({ error: 'Valid amount is required' });
+    }
+
     const transaction = await TransactionTracker.trackPendingTransaction({
       userId,
       propertyId,
       type,
-      amount,
-      shares,
-      pricePerShare,
+      amount: Number(amount),
+      shares: Number(shares) || 0,
+      pricePerShare: Number(pricePerShare) || 0,
       transactionHash,
       fromAddress,
       toAddress

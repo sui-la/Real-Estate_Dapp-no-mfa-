@@ -361,19 +361,25 @@ const Trading = () => {
 
       // Track the order creation as a pending transaction
       try {
-        await TransactionService.trackPendingTransaction({
-          propertyId: property._id,
-          type: orderType.toUpperCase(),
-          shares: shares,
-          pricePerShare: parseFloat(pricePerShare),
-          totalAmount: shares * parseFloat(pricePerShare),
-          transactionHash: result?.hash || 'pending',
-          blockNumber: result?.blockNumber,
-          gasUsed: result?.gasUsed?.toString(),
-          gasFee: (result?.gasUsed * result?.gasPrice)?.toString(),
-          fromAddress: account,
-          toAddress: property.fractionalTokenAddress
-        })
+        const parsedPricePerShare = parseFloat(pricePerShare) || 0;
+        const calculatedTotalAmount = shares * parsedPricePerShare;
+        
+        // Only track if we have valid amounts
+        if (calculatedTotalAmount > 0 && !isNaN(calculatedTotalAmount)) {
+          await TransactionService.trackPendingTransaction({
+            propertyId: property._id,
+            type: orderType.toUpperCase(),
+            amount: calculatedTotalAmount,
+            shares: shares,
+            pricePerShare: parsedPricePerShare,
+            transactionHash: result?.hash || 'pending',
+            blockNumber: result?.blockNumber,
+            gasUsed: result?.gasUsed?.toString(),
+            gasFee: (result?.gasUsed * result?.gasPrice)?.toString(),
+            fromAddress: account,
+            toAddress: property.fractionalTokenAddress
+          })
+        }
       } catch (trackingError) {
         console.warn('Failed to track order creation:', trackingError)
       }
