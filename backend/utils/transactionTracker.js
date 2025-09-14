@@ -110,25 +110,33 @@ class TransactionTracker {
     metadata = {}
   }) {
     try {
-      const transaction = new Transaction({
-        userId,
-        propertyId,
-        type,
-        amount,
-        shares: 0, // Dividends don't involve share transfers
-        pricePerShare: 0,
-        transactionHash,
-        blockNumber,
-        gasUsed,
-        gasFee,
-        status: 'CONFIRMED',
-        distributionId,
-        fromAddress: fromAddress?.toLowerCase(),
-        toAddress: toAddress?.toLowerCase(),
-        metadata
-      });
+      // Use findOneAndUpdate with upsert to handle duplicates
+      const transaction = await Transaction.findOneAndUpdate(
+        { transactionHash }, // Find by transaction hash
+        {
+          userId,
+          propertyId,
+          type,
+          amount,
+          shares: 0, // Dividends don't involve share transfers
+          pricePerShare: 0,
+          transactionHash,
+          blockNumber,
+          gasUsed,
+          gasFee,
+          status: 'CONFIRMED',
+          distributionId,
+          fromAddress: fromAddress?.toLowerCase(),
+          toAddress: toAddress?.toLowerCase(),
+          metadata
+        },
+        { 
+          new: true, 
+          upsert: true, // Create if doesn't exist, update if exists
+          setDefaultsOnInsert: true 
+        }
+      );
 
-      await transaction.save();
       console.log(`✅ Tracked ${type} transaction: ${transactionHash}`);
       return transaction;
     } catch (error) {

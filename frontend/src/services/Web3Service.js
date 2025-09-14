@@ -263,11 +263,37 @@ class Web3Service {
         throw new Error(`Insufficient balance. Need ${ethers.formatEther(totalCost)} ETH but have ${ethers.formatEther(userBalance)} ETH`)
       }
 
+      // Try to estimate gas first, with fallback to higher gas limit
+      let gasLimit = 750000; // Conservative default
+      try {
+        const estimatedGas = await this.contracts.realEstateFractionalization.purchaseShares.estimateGas(propertyId, shares, {
+          value: totalCost
+        });
+        // Add 50% buffer to estimated gas
+        gasLimit = Math.floor(Number(estimatedGas) * 1.5);
+        console.log('🔄 [DEBUG] Estimated gas:', estimatedGas.toString(), 'Using gas limit:', gasLimit);
+      } catch (gasEstimateError) {
+        console.warn('🔄 [DEBUG] Gas estimation failed, using default gas limit:', gasLimit);
+        console.warn('Gas estimate error:', gasEstimateError.message);
+      }
+
       console.log('🔄 [DEBUG] Calling purchaseShares on main contract...')
-      const tx = await this.contracts.realEstateFractionalization.purchaseShares(propertyId, shares, {
+      
+      // Get current gas price and add some buffer
+      const feeData = await this.signer.provider.getFeeData();
+      console.log('🔄 [DEBUG] Current gas price:', ethers.formatUnits(feeData.gasPrice || 0, 'gwei'), 'gwei');
+      
+      const txOptions = {
         value: totalCost,
-        gasLimit: 500000 // Add explicit gas limit
-      })
+        gasLimit: gasLimit
+      };
+      
+      // Add gas price for better reliability
+      if (feeData.gasPrice) {
+        txOptions.gasPrice = feeData.gasPrice;
+      }
+      
+      const tx = await this.contracts.realEstateFractionalization.purchaseShares(propertyId, shares, txOptions)
 
       const receipt = await tx.wait()
       
@@ -283,8 +309,16 @@ class Web3Service {
         throw new Error('Insufficient ETH balance to complete purchase.')
       } else if (error.message.includes('user rejected')) {
         throw new Error('Transaction was rejected by user.')
+      } else if (error.message.includes('trading is not enabled')) {
+        throw new Error('Trading is not enabled for this property.')
+      } else if (error.message.includes('unrecognized-selector') || error.message.includes('run out of gas')) {
+        throw new Error('Transaction failed due to gas issues. Please try again with a higher gas limit or check your MetaMask settings.')
+      } else if (error.message.includes('reverted without a reason')) {
+        throw new Error('Transaction was reverted. This might be due to insufficient gas, network congestion, or contract state issues. Please try again.')
+      } else if (error.code === 'UNPREDICTABLE_GAS_LIMIT') {
+        throw new Error('Unable to estimate gas for this transaction. Please check the transaction parameters and try again.')
       } else {
-        throw error
+        throw new Error(`Purchase failed: ${error.message}`)
       }
     }
   }

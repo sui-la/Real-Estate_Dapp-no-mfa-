@@ -297,6 +297,20 @@ export const Web3Provider = ({ children }) => {
         DIVIDEND_DISTRIBUTOR_ABI,
         web3Signer
       )
+      
+      // Add protective wrapper to prevent unrecognized selector errors
+      const originalGetClaimableDividend = dividendDistributorContract.getClaimableDividend
+      dividendDistributorContract.getClaimableDividend = async (...args) => {
+        try {
+          return await originalGetClaimableDividend.apply(dividendDistributorContract, args)
+        } catch (error) {
+          if (error.message.includes('unrecognized selector') || error.message.includes('missing revert data')) {
+            console.warn('⚠️  DividendDistributor call failed, returning 0:', error.message)
+            return 0n
+          }
+          throw error
+        }
+      }
 
       const contractInstances = {
         realEstateFractionalization: realEstateContract,
