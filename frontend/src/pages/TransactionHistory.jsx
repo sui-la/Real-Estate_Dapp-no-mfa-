@@ -497,7 +497,7 @@ const TransactionHistory = () => {
                             )
                             return (
                               <button
-                                key={pageNumber}
+                                key={`page-${pageNumber}-${i}`}
                                 onClick={() => handlePageChange(pageNumber)}
                                 className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
                                   pageNumber === pagination.currentPage

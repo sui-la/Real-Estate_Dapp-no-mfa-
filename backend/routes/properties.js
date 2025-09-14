@@ -161,7 +161,11 @@ router.put('/:id', [
   auth,
   body('name').optional().trim().isLength({ min: 1 }),
   body('description').optional().trim().isLength({ min: 1 }),
+  body('location').optional().trim().isLength({ min: 1 }),
   body('totalValue').optional().isNumeric(),
+  body('totalShares').optional().isInt({ min: 1 }),
+  body('imageUrl').optional().isString(),
+  body('documents').optional().isArray(),
   body('tokenId').optional().isNumeric(),
   body('fractionalTokenAddress').optional().isString()
 ], async (req, res) => {
@@ -186,11 +190,26 @@ router.put('/:id', [
       return res.status(404).json({ error: 'Property not found' });
     }
 
-    const { name, description, totalValue, tokenId, fractionalTokenAddress } = req.body;
+    const { 
+      name, 
+      description, 
+      location,
+      totalValue, 
+      totalShares,
+      imageUrl,
+      documents,
+      tokenId, 
+      fractionalTokenAddress 
+    } = req.body;
 
+    // Update property fields if provided
     if (name) property.name = name;
     if (description) property.description = description;
+    if (location) property.location = location;
     if (totalValue) property.totalValue = totalValue;
+    if (totalShares) property.totalShares = totalShares;
+    if (imageUrl !== undefined) property.imageUrl = imageUrl;
+    if (documents !== undefined) property.documents = documents;
     if (tokenId !== undefined) property.tokenId = tokenId;
     if (fractionalTokenAddress !== undefined) property.fractionalTokenAddress = fractionalTokenAddress;
 

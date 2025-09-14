@@ -8,6 +8,8 @@ import {
   BuildingOfficeIcon,
   CurrencyDollarIcon,
   CogIcon,
+  PencilIcon,
+  XMarkIcon,
 } from '@heroicons/react/24/outline'
 
 const Admin = () => {
@@ -33,6 +35,19 @@ const Admin = () => {
     documents: '',
     fractionalTokenName: '',
     fractionalTokenSymbol: '',
+  })
+
+  // Property edit form
+  const [editingProperty, setEditingProperty] = useState(null)
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [editForm, setEditForm] = useState({
+    name: '',
+    description: '',
+    location: '',
+    totalValue: '',
+    totalShares: '',
+    imageUrl: '',
+    documents: '',
   })
 
   // Dividend distribution form
@@ -67,6 +82,14 @@ const Admin = () => {
   const handlePropertyFormChange = (e) => {
     const { name, value } = e.target
     setPropertyForm(prev => ({
+      ...prev,
+      [name]: value
+    }))
+  }
+
+  const handleEditFormChange = (e) => {
+    const { name, value } = e.target
+    setEditForm(prev => ({
       ...prev,
       [name]: value
     }))
@@ -447,6 +470,68 @@ const Admin = () => {
     }
   }
 
+  const openEditModal = (property) => {
+    setEditingProperty(property)
+    setEditForm({
+      name: property.name,
+      description: property.description,
+      location: property.location,
+      totalValue: property.totalValue.toString(),
+      totalShares: property.totalShares.toString(),
+      imageUrl: property.imageUrl || '',
+      documents: property.documents ? property.documents.join(', ') : '',
+    })
+    setShowEditModal(true)
+  }
+
+  const closeEditModal = () => {
+    setEditingProperty(null)
+    setShowEditModal(false)
+    setEditForm({
+      name: '',
+      description: '',
+      location: '',
+      totalValue: '',
+      totalShares: '',
+      imageUrl: '',
+      documents: '',
+    })
+  }
+
+  const updateProperty = async (e) => {
+    e.preventDefault()
+
+    if (!editingProperty) return
+
+    try {
+      setLoading(true)
+
+      const updateData = {
+        name: editForm.name,
+        description: editForm.description,
+        location: editForm.location,
+        totalValue: parseFloat(editForm.totalValue),
+        totalShares: parseInt(editForm.totalShares),
+        imageUrl: editForm.imageUrl && editForm.imageUrl.startsWith('http') ? editForm.imageUrl : '/vite.svg',
+        documents: editForm.documents ? editForm.documents.split(',').map(doc => doc.trim()).filter(doc => doc) : []
+      }
+
+      await ApiService.updateProperty(editingProperty._id, updateData)
+      
+      toast.success('Property updated successfully!')
+      
+      // Close modal and refresh properties list
+      closeEditModal()
+      await fetchProperties()
+      
+    } catch (error) {
+      console.error('❌ [ERROR] Admin: Error updating property:', error)
+      toast.error('Failed to update property: ' + error.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-96">
@@ -760,6 +845,13 @@ const Admin = () => {
                         </div>
                       </div>
                       <div className="flex items-center space-x-2">
+                        <button
+                          onClick={() => openEditModal(property)}
+                          className="px-3 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 flex items-center"
+                        >
+                          <PencilIcon className="h-4 w-4 mr-1" />
+                          Edit
+                        </button>
                         {property.tokenId !== null ? (
                           propertyTradingStatus[property.tokenId] ? (
                             <button
@@ -988,6 +1080,160 @@ const Admin = () => {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Edit Property Modal */}
+      {showEditModal && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50" onClick={closeEditModal}>
+          <div className="relative top-8 mx-auto p-5 border max-w-2xl shadow-lg rounded-md bg-white" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg leading-6 font-medium text-gray-900">Edit Property</h3>
+              <button
+                onClick={closeEditModal}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <XMarkIcon className="h-6 w-6" />
+              </button>
+            </div>
+            
+            <form onSubmit={updateProperty} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Property Name
+                  </label>
+                  <input
+                    type="text"
+                    name="name"
+                    value={editForm.name}
+                    onChange={handleEditFormChange}
+                    required
+                    className="input-field"
+                    placeholder="Enter property name"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Location
+                  </label>
+                  <input
+                    type="text"
+                    name="location"
+                    value={editForm.location}
+                    onChange={handleEditFormChange}
+                    required
+                    className="input-field"
+                    placeholder="Enter property location"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Description
+                </label>
+                <textarea
+                  name="description"
+                  value={editForm.description}
+                  onChange={handleEditFormChange}
+                  required
+                  rows={3}
+                  className="input-field"
+                  placeholder="Enter property description"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Total Value (ETH)
+                  </label>
+                  <input
+                    type="number"
+                    name="totalValue"
+                    value={editForm.totalValue}
+                    onChange={handleEditFormChange}
+                    required
+                    step="0.01"
+                    className="input-field"
+                    placeholder="Enter total value"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Total Shares
+                  </label>
+                  <input
+                    type="number"
+                    name="totalShares"
+                    value={editForm.totalShares}
+                    onChange={handleEditFormChange}
+                    required
+                    className="input-field"
+                    placeholder="Enter total shares"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Image URL
+                </label>
+                <input
+                  type="url"
+                  name="imageUrl"
+                  value={editForm.imageUrl}
+                  onChange={handleEditFormChange}
+                  className="input-field"
+                  placeholder="Enter image URL"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Document URLs (comma-separated)
+                </label>
+                <input
+                  type="text"
+                  name="documents"
+                  value={editForm.documents}
+                  onChange={handleEditFormChange}
+                  className="input-field"
+                  placeholder="Enter document URLs separated by commas"
+                />
+              </div>
+
+              {editingProperty && editingProperty.tokenId !== null && (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                  <p className="text-sm text-yellow-800">
+                    <strong>Note:</strong> This property is already created on the blockchain (Token ID: {editingProperty.tokenId}). 
+                    Changes to total value and total shares will only affect the database record and won't update the blockchain.
+                  </p>
+                </div>
+              )}
+
+              <div className="flex justify-end space-x-3 pt-4">
+                <button
+                  type="button"
+                  onClick={closeEditModal}
+                  className="px-4 py-2 bg-gray-500 text-white text-sm font-medium rounded-md hover:bg-gray-600"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+                >
+                  <PencilIcon className="h-4 w-4 mr-2" />
+                  {loading ? 'Updating...' : 'Update Property'}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
 

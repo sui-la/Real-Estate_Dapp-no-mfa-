@@ -10,6 +10,9 @@ const TransactionTracker = require('../utils/transactionTracker');
 router.get('/', auth, async (req, res) => {
   try {
     const userId = req.user.id;
+    console.log('🔍 [DEBUG] Fetching transactions for user ID:', userId);
+    console.log('🔍 [DEBUG] User email:', req.user.email);
+    
     const { 
       page = 1, 
       limit = 20, 
@@ -23,6 +26,7 @@ router.get('/', auth, async (req, res) => {
 
     // Build filter object
     const filter = { userId };
+    console.log('🔍 [DEBUG] Transaction filter:', filter);
     
     if (type) {
       filter.type = type;
@@ -58,6 +62,9 @@ router.get('/', auth, async (req, res) => {
     // Get total count for pagination
     const totalCount = await Transaction.countDocuments(filter);
     const totalPages = Math.ceil(totalCount / parseInt(limit));
+    
+    console.log(`🔍 [DEBUG] Found ${totalCount} transactions for user ${userId}`);
+    console.log(`🔍 [DEBUG] Returning ${transactions.length} transactions on page ${page}`);
 
     // Calculate summary statistics
     const summary = await Transaction.aggregate([
