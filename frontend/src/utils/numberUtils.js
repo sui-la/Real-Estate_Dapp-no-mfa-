@@ -92,3 +92,60 @@ export const calculateAvailableShares = (totalShares, sharesSold) => {
   const sold = safeNumber(sharesSold)
   return Math.max(0, total - sold)
 }
+
+/**
+ * Formats large numbers with appropriate suffixes (K, M, B)
+ * @param {any} value - The value to format
+ * @param {number} decimals - Number of decimal places (default: 1)
+ * @returns {string} - The formatted number string
+ */
+export const formatLargeNumber = (value, decimals = 1) => {
+  const num = safeNumber(value)
+  
+  if (num === 0) return '0'
+  
+  const absNum = Math.abs(num)
+  const sign = num < 0 ? '-' : ''
+  
+  if (absNum >= 1000000000) {
+    return `${sign}${(absNum / 1000000000).toFixed(decimals)}B`
+  } else if (absNum >= 1000000) {
+    return `${sign}${(absNum / 1000000).toFixed(decimals)}M`
+  } else if (absNum >= 1000) {
+    return `${sign}${(absNum / 1000).toFixed(decimals)}K`
+  } else {
+    return num.toString()
+  }
+}
+
+/**
+ * Formats currency with large number suffixes
+ * @param {any} value - The value to format
+ * @param {string} currency - The currency symbol (default: '$')
+ * @param {number} decimals - Number of decimal places (default: 1)
+ * @returns {string} - The formatted currency string
+ */
+export const formatLargeCurrency = (value, currency = '$', decimals = 1) => {
+  const num = safeNumber(value)
+  return `${currency}${formatLargeNumber(num, decimals)}`
+}
+
+/**
+ * Formats statistics display values with appropriate formatting
+ * @param {any} value - The value to format
+ * @param {string} type - The type of statistic ('currency', 'number', 'count')
+ * @returns {string} - The formatted display string
+ */
+export const formatStatDisplay = (value, type = 'number') => {
+  const num = safeNumber(value)
+  
+  switch (type) {
+    case 'currency':
+      return num >= 1000 ? `${formatLargeCurrency(num)}+` : safeFormatCurrency(num)
+    case 'count':
+      return num >= 1000 ? `${formatLargeNumber(num)}+` : safeFormatNumber(num)
+    case 'number':
+    default:
+      return num >= 1000 ? `${formatLargeNumber(num)}+` : safeFormatNumber(num)
+  }
+}

@@ -220,8 +220,6 @@ export const Web3Provider = ({ children }) => {
 
         // Initialize contracts
         await initializeContracts(web3Signer)
-
-        toast.success(`Connected to ${address.slice(0, 6)}...${address.slice(-4)}`)
       } else {
         console.log('❌ No accounts found - wallet connection failed')
       }

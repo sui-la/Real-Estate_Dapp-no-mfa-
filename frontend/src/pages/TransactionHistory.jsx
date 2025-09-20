@@ -487,28 +487,51 @@ const TransactionHistory = () => {
                           </button>
                           
                           {/* Page numbers */}
-                          {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
-                            const pageNumber = Math.max(
-                              1,
-                              Math.min(
-                                pagination.currentPage - 2 + i,
-                                pagination.totalPages - 4 + i
+                          {(() => {
+                            const currentPage = pagination.currentPage || 1
+                            const totalPages = pagination.totalPages || 1
+                            const maxVisiblePages = 5
+                            
+                            let startPage, endPage
+                            
+                            if (totalPages <= maxVisiblePages) {
+                              // Show all pages if total pages is less than max visible
+                              startPage = 1
+                              endPage = totalPages
+                            } else {
+                              // Calculate start and end page with current page centered
+                              const halfVisible = Math.floor(maxVisiblePages / 2)
+                              
+                              if (currentPage <= halfVisible) {
+                                startPage = 1
+                                endPage = maxVisiblePages
+                              } else if (currentPage + halfVisible >= totalPages) {
+                                startPage = totalPages - maxVisiblePages + 1
+                                endPage = totalPages
+                              } else {
+                                startPage = currentPage - halfVisible
+                                endPage = currentPage + halfVisible
+                              }
+                            }
+                            
+                            const pages = []
+                            for (let i = startPage; i <= endPage; i++) {
+                              pages.push(
+                                <button
+                                  key={`page-${i}`}
+                                  onClick={() => handlePageChange(i)}
+                                  className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
+                                    i === currentPage
+                                      ? 'z-10 bg-blue-50 border-blue-500 text-blue-600'
+                                      : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
+                                  }`}
+                                >
+                                  {i}
+                                </button>
                               )
-                            )
-                            return (
-                              <button
-                                key={`page-${pageNumber}-${i}`}
-                                onClick={() => handlePageChange(pageNumber)}
-                                className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
-                                  pageNumber === pagination.currentPage
-                                    ? 'z-10 bg-blue-50 border-blue-500 text-blue-600'
-                                    : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
-                                }`}
-                              >
-                                {pageNumber}
-                              </button>
-                            )
-                          })}
+                            }
+                            return pages
+                          })()}
                           
                           <button
                             onClick={() => handlePageChange(pagination.currentPage + 1)}

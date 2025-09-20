@@ -357,4 +357,65 @@ router.get('/:id/analytics', async (req, res) => {
   }
 });
 
+// @route   GET /api/properties/stats/platform
+// @desc    Get platform-wide statistics
+// @access  Public
+router.get('/stats/platform', async (req, res) => {
+  try {
+    // Get total properties count
+    const totalProperties = await Property.countDocuments({ isActive: true });
+    
+    // Get total platform value
+    const valueAggregation = await Property.aggregate([
+      { $match: { isActive: true } },
+      {
+        $group: {
+          _id: null,
+          totalValue: { $sum: '$totalValue' },
+          avgValue: { $avg: '$totalValue' }
+        }
+      }
+    ]);
+    
+    const totalValue = valueAggregation.length > 0 ? valueAggregation[0].totalValue : 0;
+    const avgValue = valueAggregation.length > 0 ? valueAggregation[0].avgValue : 0;
+
+    // Get unique investors count (from User collection)
+    const User = require('../models/User');
+    const totalUsers = await User.countDocuments({ isAdmin: { $ne: true } });
+    
+    // Get dividends data
+    const Dividend = require('../models/Dividend');
+    const dividendStats = await Dividend.aggregate([
+      {
+        $group: {
+          _id: null,
+          totalDividendsPaid: { $sum: '$distributedAmount' },
+          totalDividendsCount: { $sum: 1 }
+        }
+      }
+    ]);
+
+    const totalDividendsPaid = dividendStats.length > 0 ? dividendStats[0].totalDividendsPaid : 0;
+    const totalDividendsCount = dividendStats.length > 0 ? dividendStats[0].totalDividendsCount : 0;
+
+    // Format the statistics
+    const stats = {
+      propertiesListed: totalProperties,
+      totalValue: totalValue,
+      activeInvestors: totalUsers,
+      dividendsPaid: totalDividendsPaid,
+      // Additional useful stats
+      avgPropertyValue: avgValue,
+      totalDividendsCount: totalDividendsCount,
+      lastUpdated: new Date().toISOString()
+    };
+
+    res.json(stats);
+  } catch (error) {
+    console.error('Get platform stats error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 module.exports = router;

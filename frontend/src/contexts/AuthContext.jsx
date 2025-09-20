@@ -209,7 +209,7 @@ export const AuthProvider = ({ children }) => {
         const data = await response.json()
         console.log('✅ Wallet linked successfully:', data.user)
         setUser(data.user)
-        toast.success('Wallet linked to your account!')
+        // Note: Success message removed to prevent duplicate notifications
       } else {
         const errorData = await response.json()
         console.log('❌ Wallet link failed:', errorData)

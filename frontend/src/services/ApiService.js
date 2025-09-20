@@ -92,6 +92,10 @@ class ApiService {
     })
   }
 
+  async getPlatformStats() {
+    return this.request('/properties/stats/platform')
+  }
+
   // User endpoints
   async updateProfile(profileData) {
     return this.request('/auth/profile', {

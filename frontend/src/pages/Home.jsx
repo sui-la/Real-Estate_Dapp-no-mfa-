@@ -1,7 +1,9 @@
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useWeb3 } from '../contexts/Web3Context'
 import { useAuth } from '../contexts/AuthContext'
+import ApiService from '../services/ApiService'
+import { formatStatDisplay } from '../utils/numberUtils'
 import {
   BuildingOfficeIcon,
   ChartBarIcon,
@@ -9,11 +11,22 @@ import {
   ShieldCheckIcon,
   ArrowRightIcon,
   StarIcon,
+  ArrowPathIcon,
 } from '@heroicons/react/24/outline'
 
 const Home = () => {
   const { isConnected, connectWallet } = useWeb3()
   const { isAuthenticated } = useAuth()
+  
+  // State for real-time statistics
+  const [stats, setStats] = useState([
+    { name: 'Properties Listed', value: '50+', loading: true },
+    { name: 'Total Value', value: '$100M+', loading: true },
+    { name: 'Active Investors', value: '1,000+', loading: true },
+  ])
+  const [isLoadingStats, setIsLoadingStats] = useState(true)
+  const [statsError, setStatsError] = useState(null)
+  const [lastUpdated, setLastUpdated] = useState(null)
 
   const features = [
     {
@@ -38,12 +51,63 @@ const Home = () => {
     },
   ]
 
-  const stats = [
-    { name: 'Properties Listed', value: '50+' },
-    { name: 'Total Value', value: '$100M+' },
-    { name: 'Active Investors', value: '1,000+' },
-    { name: 'Dividends Paid', value: '$5M+' },
-  ]
+  // Function to fetch platform statistics
+  const fetchPlatformStats = async () => {
+    try {
+      setIsLoadingStats(true)
+      setStatsError(null)
+      
+      const data = await ApiService.getPlatformStats()
+      
+      const updatedStats = [
+        { 
+          name: 'Properties Listed', 
+          value: formatStatDisplay(data.propertiesListed, 'count'),
+          loading: false 
+        },
+        { 
+          name: 'Total Value', 
+          value: formatStatDisplay(data.totalValue, 'currency'),
+          loading: false 
+        },
+        { 
+          name: 'Active Investors', 
+          value: formatStatDisplay(data.activeInvestors, 'count'),
+          loading: false 
+        },
+      ]
+      
+      setStats(updatedStats)
+      setLastUpdated(new Date(data.lastUpdated))
+    } catch (error) {
+      console.error('Error fetching platform stats:', error)
+      setStatsError('Failed to load statistics')
+      
+      // Fallback to default values if API fails
+      const fallbackStats = [
+        { name: 'Properties Listed', value: '0', loading: false },
+        { name: 'Total Value', value: '$0', loading: false },
+        { name: 'Active Investors', value: '0', loading: false },
+      ]
+      setStats(fallbackStats)
+    } finally {
+      setIsLoadingStats(false)
+    }
+  }
+
+  // Fetch stats on component mount
+  useEffect(() => {
+    fetchPlatformStats()
+  }, [])
+
+  // Auto-refresh stats every 30 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchPlatformStats()
+    }, 30000) // 30 seconds
+
+    return () => clearInterval(interval)
+  }, [])
 
   const testimonials = [
     {
@@ -105,13 +169,61 @@ const Home = () => {
       {/* Stats section */}
       <div className="bg-white py-16">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-2 gap-8 md:grid-cols-4">
+          {/* Stats header with refresh button */}
+          <div className="flex items-center justify-between mb-8">
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900">Platform Statistics</h2>
+              {lastUpdated && (
+                <p className="text-sm text-gray-500 mt-1">
+                  Last updated: {lastUpdated.toLocaleTimeString()}
+                </p>
+              )}
+            </div>
+            <button
+              onClick={fetchPlatformStats}
+              disabled={isLoadingStats}
+              className="flex items-center px-3 py-2 text-sm font-medium text-gray-600 bg-gray-100 rounded-md hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              <ArrowPathIcon 
+                className={`h-4 w-4 mr-2 ${isLoadingStats ? 'animate-spin' : ''}`}
+              />
+              {isLoadingStats ? 'Updating...' : 'Refresh'}
+            </button>
+          </div>
+
+          {/* Error message */}
+          {statsError && (
+            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-md">
+              <p className="text-sm text-red-600">{statsError}</p>
+            </div>
+          )}
+
+          {/* Stats grid */}
+          <div className="grid grid-cols-1 gap-8 md:grid-cols-3">
             {stats.map((stat) => (
               <div key={stat.name} className="text-center">
-                <div className="text-3xl font-bold text-gray-900">{stat.value}</div>
-                <div className="text-sm text-gray-600">{stat.name}</div>
+                <div className="text-3xl font-bold text-gray-900">
+                  {stat.loading ? (
+                    <div className="animate-pulse">
+                      <div className="h-8 bg-gray-300 rounded w-16 mx-auto"></div>
+                    </div>
+                  ) : (
+                    <span className="transition-all duration-500 ease-in-out">
+                      {stat.value}
+                    </span>
+                  )}
+                </div>
+                <div className="text-sm text-gray-600 mt-2">{stat.name}</div>
               </div>
             ))}
+          </div>
+
+          {/* Live indicator */}
+          <div className="flex items-center justify-center mt-6">
+            <div className="flex items-center text-xs text-gray-500">
+              <div className="w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse"></div>
+              Live data • Auto-refreshes every 30 seconds
+            </div>
           </div>
         </div>
       </div>

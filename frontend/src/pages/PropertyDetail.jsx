@@ -13,7 +13,6 @@ import {
   ChartBarIcon,
   CalendarIcon,
   DocumentTextIcon,
-  ShareIcon,
   ArrowLeftIcon,
 } from '@heroicons/react/24/outline'
 
@@ -539,7 +538,7 @@ const PropertyDetail = () => {
               </div>
               <div className="flex items-center text-sm">
                 <BuildingOfficeIcon className="h-4 w-4 mr-2 text-gray-400" />
-                <span className="text-gray-600">Owner:</span>
+                <span className="text-gray-600">Listed by:</span>
                 <span className="ml-auto font-medium">
                   {property.originalOwner ? 
                     (typeof property.originalOwner === 'string' 
@@ -571,17 +570,6 @@ const PropertyDetail = () => {
             )}
           </div>
 
-          {/* Quick Actions */}
-          <div className="card">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
-            
-            <div className="space-y-2">
-              <button className="w-full btn-secondary">
-                <ShareIcon className="h-4 w-4 mr-2" />
-                Share Property
-              </button>
-            </div>
-          </div>
         </div>
       </div>
 
